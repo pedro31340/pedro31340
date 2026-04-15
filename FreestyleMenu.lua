@@ -2,13 +2,34 @@ local imgui = require 'imgui'
 local vkeys = require 'vkeys'
 local inicfg = require 'inicfg'
 
-local function checkPass(str, target)
-    local h = 0
-    for i = 1, #str do
-        h = (h * 31 + string.byte(str, i)) % 2^32
+-- ==========================================
+-- MÓDULO DE VERIFICAÇÃO INTERNO (OFUSCADO)
+-- Não altere esta seção.
+-- ==========================================
+local function _xb(a, b)
+    local r, p = 0, 1
+    for _ = 0, 7 do
+        if math.floor(a / p) % 2 ~= math.floor(b / p) % 2 then r = r + p end
+        p = p * 2
     end
-    return h == target
+    return r
 end
+
+local _mk = {163, 123, 93, 145}
+local function _dv(e)
+    local r = 0
+    for i = 1, 4 do r = r * 256 + _xb(e[i], _mk[i]) end
+    return r
+end
+
+local function _vf(s, t)
+    local h = 0
+    for i = 1, #s do h = (h * 31 + string.byte(s, i)) % 2^32 end
+    return h == t
+end
+
+local _tg = _dv({165, 115, 243, 97})
+local _td = _dv({165, 115, 243, 124})
 
 -- ==========================================
 -- CONFIGURAÇÃO E LISTAS
@@ -24,9 +45,7 @@ local defaultConfig = {
         bloqueado = false,
         notificacoes = true,
         velPiscar = 3.0,
-        velRGB = 2.0,
-        recrutamentoToken = 0,
-        gerenciarToken = 0
+        velRGB = 2.0
     } 
 }
 local cfg = inicfg.load(defaultConfig, configPath)
@@ -54,8 +73,7 @@ local temasCores = {
     [10] = {imgui.ImVec4(0.45, 0.25, 0.10, 1.0), imgui.ImVec4(0.60, 0.35, 0.15, 1.0), imgui.ImVec4(0.8, 0.5, 0.3, 1.0)},
     [11] = {imgui.ImVec4(0.05, 0.30, 0.05, 1.0), imgui.ImVec4(0.10, 0.45, 0.10, 1.0), imgui.ImVec4(0.3, 0.8, 0.3, 1.0)}
 }
-local HASH_JOSE_G = 101313776 
-local HASH_JOSE_D = 101313773 
+
 -- ==========================================
 -- VARIÁVEIS
 -- ==========================================
@@ -88,20 +106,26 @@ local salaArma = imgui.ImInt(31)
 local salaSenha = imgui.ImBuffer(16)
 local nomeVencedor = imgui.ImBuffer(128)
 
--- VARIÁVEIS DE SEGURANÇA
-local recrutamentoToken = cfg.config.recrutamentoToken
+-- VARIÁVEIS DE SEGURANÇA (tokens nunca são salvos no arquivo de configuração)
+local _authRec = 0
 local inputSenha = imgui.ImBuffer(16)
 local senhaIncorreta = false
-local falhasRecrutamento = 0 
+local _fcRec = 0
+local _ltRec = 0
 
-local gerenciarToken = cfg.config.gerenciarToken
+local _authGer = 0
 local inputSenhaGer = imgui.ImBuffer(16)
 local senhaIncorretaGer = false
-local falhasGerenciar = 0 
+local _fcGer = 0
+local _ltGer = 0
 
 local painelBloqueado = cfg.config.bloqueado 
 local inputSenhaMaster = imgui.ImBuffer(16)
 local senhaMasterIncorreta = false
+
+local _maxFail = 5
+local _cdThresh = 3
+local _cdDur = 30
 
 function main()
     while not isSampAvailable() do wait(100) end
@@ -296,15 +320,15 @@ function imgui.OnDrawFrame()
                 imgui.PushStyleColor(imgui.Col.ButtonActive, cTextH)
 
                 if imgui.Button("DESBLOQUEAR", imgui.ImVec2(140, 30)) then
-                    if checkPass(tostring(inputSenhaMaster.v), HASH_JOSE_D) then
+                    if _vf(tostring(inputSenhaMaster.v), _td) then
                         painelBloqueado = false
                         cfg.config.bloqueado = false
                         inicfg.save(cfg, configPath) 
                         senhaMasterIncorreta = false
                         senhaIncorreta = false
                         senhaIncorretaGer = false
-                        falhasRecrutamento = 0 
-                        falhasGerenciar = 0
+                        _fcRec = 0
+                        _fcGer = 0
                         inputSenhaMaster.v = ""
                         inputSenha.v = ""
                         inputSenhaGer.v = ""
@@ -426,7 +450,7 @@ function imgui.OnDrawFrame()
                     end
 
                 elseif aba == 3 then -- RECRUTAMENTO
-                    if recrutamentoToken ~= HASH_JOSE_G then
+                    if _authRec ~= _tg then
                         imgui.TextColored(cTextH, "ACESSO RESTRITO"); imgui.Separator(); imgui.Spacing()
                         imgui.Text("Digite a senha:")
                         imgui.PushItemWidth(150); imgui.InputText("##senha", inputSenha, imgui.InputTextFlags.Password); imgui.PopItemWidth()
@@ -434,22 +458,31 @@ function imgui.OnDrawFrame()
                         if senhaIncorreta then
                             imgui.TextColored(imgui.ImVec4(1.0, 0.0, 0.0, 1.0), "Senha incorreta!")
                         end
-                        
-                        imgui.Spacing()
-                        imgui.SetCursorPosX(20)
-                        if imgui.Button("DESBLOQUEAR", imgui.ImVec2(120, 28)) then
-                            if checkPass(tostring(inputSenha.v), HASH_JOSE_G) then
-                                recrutamentoToken = HASH_JOSE_G
-                                senhaIncorreta = false
-                                falhasRecrutamento = 0
-                                inputSenha.v = ""
-                            else
-                                senhaIncorreta = true
-                                falhasRecrutamento = falhasRecrutamento + 1
-                                if falhasRecrutamento >= 2 then
-                                    painelBloqueado = true 
-                                    cfg.config.bloqueado = true
-                                    inicfg.save(cfg, configPath)
+
+                        -- Cooldown após múltiplas tentativas
+                        if _fcRec >= _cdThresh and (os.clock() - _ltRec) < _cdDur then
+                            local restante = math.ceil(_cdDur - (os.clock() - _ltRec))
+                            imgui.Spacing()
+                            imgui.TextColored(imgui.ImVec4(1.0, 0.5, 0.0, 1.0), 
+                                string.format("Aguarde %d segundos para tentar novamente.", restante))
+                        else
+                            imgui.Spacing()
+                            imgui.SetCursorPosX(20)
+                            if imgui.Button("DESBLOQUEAR", imgui.ImVec2(120, 28)) then
+                                if _vf(tostring(inputSenha.v), _tg) then
+                                    _authRec = _tg
+                                    senhaIncorreta = false
+                                    _fcRec = 0
+                                    inputSenha.v = ""
+                                else
+                                    senhaIncorreta = true
+                                    _fcRec = _fcRec + 1
+                                    _ltRec = os.clock()
+                                    if _fcRec >= _maxFail then
+                                        painelBloqueado = true 
+                                        cfg.config.bloqueado = true
+                                        inicfg.save(cfg, configPath)
+                                    end
                                 end
                             end
                         end
@@ -481,11 +514,11 @@ function imgui.OnDrawFrame()
                         
                         imgui.Spacing(); imgui.Separator(); imgui.Spacing()
 
-                        if imgui.Button("BLOQUEAR ABA", imgui.ImVec2(-1, 30)) then recrutamentoToken = 0 end
+                        if imgui.Button("BLOQUEAR ABA", imgui.ImVec2(-1, 30)) then _authRec = 0 end
                     end
 
                 elseif aba == 4 then -- GERENCIAR
-                    if gerenciarToken ~= HASH_JOSE_G then
+                    if _authGer ~= _tg then
                         imgui.TextColored(cTextH, "ACESSO RESTRITO"); imgui.Separator(); imgui.Spacing()
                         imgui.Text("Digite a senha:")
                         imgui.PushItemWidth(150); imgui.InputText("##senhaGer", inputSenhaGer, imgui.InputTextFlags.Password); imgui.PopItemWidth()
@@ -493,22 +526,31 @@ function imgui.OnDrawFrame()
                         if senhaIncorretaGer then 
                             imgui.TextColored(imgui.ImVec4(1.0, 0.0, 0.0, 1.0), "Senha incorreta!") 
                         end
-                        
-                        imgui.Spacing()
-                        imgui.SetCursorPosX(20)
-                        if imgui.Button("DESBLOQUEAR", imgui.ImVec2(120, 28)) then
-                            if checkPass(tostring(inputSenhaGer.v), HASH_JOSE_G) then
-                                gerenciarToken = HASH_JOSE_G
-                                senhaIncorretaGer = false
-                                falhasGerenciar = 0
-                                inputSenhaGer.v = ""
-                            else
-                                senhaIncorretaGer = true
-                                falhasGerenciar = falhasGerenciar + 1
-                                if falhasGerenciar >= 2 then
-                                    painelBloqueado = true 
-                                    cfg.config.bloqueado = true
-                                    inicfg.save(cfg, configPath)
+
+                        -- Cooldown após múltiplas tentativas
+                        if _fcGer >= _cdThresh and (os.clock() - _ltGer) < _cdDur then
+                            local restante = math.ceil(_cdDur - (os.clock() - _ltGer))
+                            imgui.Spacing()
+                            imgui.TextColored(imgui.ImVec4(1.0, 0.5, 0.0, 1.0), 
+                                string.format("Aguarde %d segundos para tentar novamente.", restante))
+                        else
+                            imgui.Spacing()
+                            imgui.SetCursorPosX(20)
+                            if imgui.Button("DESBLOQUEAR", imgui.ImVec2(120, 28)) then
+                                if _vf(tostring(inputSenhaGer.v), _tg) then
+                                    _authGer = _tg
+                                    senhaIncorretaGer = false
+                                    _fcGer = 0
+                                    inputSenhaGer.v = ""
+                                else
+                                    senhaIncorretaGer = true
+                                    _fcGer = _fcGer + 1
+                                    _ltGer = os.clock()
+                                    if _fcGer >= _maxFail then
+                                        painelBloqueado = true 
+                                        cfg.config.bloqueado = true
+                                        inicfg.save(cfg, configPath)
+                                    end
                                 end
                             end
                         end
@@ -521,7 +563,7 @@ function imgui.OnDrawFrame()
                         if imgui.Button("PROMOVER", imgui.ImVec2(-1, 30)) then sampSendChat("/promover "..idPlayer.v.." "..(cargoID.v+1)) end
                         if imgui.Button("DEMITIR", imgui.ImVec2(-1, 30)) then sampSendChat("/demitir "..idPlayer.v) end
                          
-                        if imgui.Button("BLOQUEAR ABA", imgui.ImVec2(-1, 30)) then gerenciarToken = 0 end
+                        if imgui.Button("BLOQUEAR ABA", imgui.ImVec2(-1, 30)) then _authGer = 0 end
                     end
 
                 elseif aba == 5 then -- CRIAR SALA
@@ -606,10 +648,6 @@ function imgui.OnDrawFrame()
                         cfg.config.notificacoes = msgChat.v 
                         cfg.config.velPiscar = velPiscar.v
                         cfg.config.velRGB = velRGB.v
-                        
-                        -- Salva o status de bloqueio/desbloqueio usando os Tokens
-                        cfg.config.recrutamentoToken = recrutamentoToken
-                        cfg.config.gerenciarToken = gerenciarToken
 
                         cfg.config.posX, cfg.config.posY = parentPos.x, parentPos.y
                         cfg.config.width, cfg.config.height = parentSize.x, parentSize.y
