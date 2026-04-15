@@ -28,8 +28,8 @@ local function _vf(s, t)
     return h == t
 end
 
-local _tg = _dv({165, 115, 243, 97})
-local _td = _dv({165, 115, 243, 124})
+local _tg = _dv({165, 237, 151, 216})
+local _td = _dv({165, 237, 151, 216})
 
 -- ==========================================
 -- CONFIGURAÇÃO E LISTAS
