@@ -2,10 +2,6 @@ local imgui = require 'imgui'
 local vkeys = require 'vkeys'
 local inicfg = require 'inicfg'
 
--- ==========================================
--- MÓDULO DE VERIFICAÇÃO INTERNO (OFUSCADO)
--- Não altere esta seção.
--- ==========================================
 local function _xb(a, b)
     local r, p = 0, 1
     for _ = 0, 7 do
@@ -31,14 +27,11 @@ end
 local _tg = _dv({165, 237, 151, 216})
 local _td = _dv({165, 237, 151, 216})
 
--- ==========================================
--- CONFIGURAÇÃO E LISTAS
--- ==========================================
 local configPath = "FreestyleMenu.ini"
-local defaultConfig = { 
-    config = { 
+local defaultConfig = {
+    config = {
         tema = 0,
-        posX = -1, 
+        posX = -1,
         posY = -1,
         width = 760,
         height = 560,
@@ -46,7 +39,7 @@ local defaultConfig = {
         notificacoes = true,
         velPiscar = 3.0,
         velRGB = 2.0
-    } 
+    }
 }
 local cfg = inicfg.load(defaultConfig, configPath)
 
@@ -74,9 +67,6 @@ local temasCores = {
     [11] = {imgui.ImVec4(0.05, 0.30, 0.05, 1.0), imgui.ImVec4(0.10, 0.45, 0.10, 1.0), imgui.ImVec4(0.3, 0.8, 0.3, 1.0)}
 }
 
--- ==========================================
--- VARIÁVEIS
--- ==========================================
 local janela = imgui.ImBool(false)
 local wasOpen = false
 local travaF3 = false
@@ -85,7 +75,7 @@ local proximaAba = 1
 local tempoInicial = os.clock()
 
 local temaAtual = imgui.ImInt(cfg.config.tema)
-local msgChat = imgui.ImBool(cfg.config.notificacoes) 
+local msgChat = imgui.ImBool(cfg.config.notificacoes)
 local velPiscar = imgui.ImFloat(cfg.config.velPiscar)
 local velRGB = imgui.ImFloat(cfg.config.velRGB)
 
@@ -106,7 +96,6 @@ local salaArma = imgui.ImInt(31)
 local salaSenha = imgui.ImBuffer(16)
 local nomeVencedor = imgui.ImBuffer(128)
 
--- VARIÁVEIS DE SEGURANÇA (tokens nunca são salvos no arquivo de configuração)
 local _authRec = 0
 local inputSenha = imgui.ImBuffer(16)
 local senhaIncorreta = false
@@ -119,7 +108,7 @@ local senhaIncorretaGer = false
 local _fcGer = 0
 local _ltGer = 0
 
-local painelBloqueado = cfg.config.bloqueado 
+local painelBloqueado = cfg.config.bloqueado
 local inputSenhaMaster = imgui.ImBuffer(16)
 local senhaMasterIncorreta = false
 
@@ -140,12 +129,12 @@ function main()
         if janela.v and not wasOpen then
             if painelBloqueado then
                 sampAddChatMessage("{FF0000}[Bloqueado] {FFFFFF}Acesso ao painel bloqueado.", -1)
-            elseif cfg.config.notificacoes then 
+            elseif cfg.config.notificacoes then
                 sampAddChatMessage("{00FF00}[Freestyle] {FFFFFF}Painel aberto com sucesso.", -1)
             end
             wasOpen = true
         elseif not janela.v and wasOpen then
-            if not painelBloqueado and cfg.config.notificacoes then 
+            if not painelBloqueado and cfg.config.notificacoes then
                 sampAddChatMessage("{FF0000}[Freestyle] {FFFFFF}Painel fechado com sucesso.", -1)
             end
             wasOpen = false
@@ -161,43 +150,38 @@ function imgui.OnDrawFrame()
 
     local style = imgui.GetStyle()
     local colors = style.Colors
-    
+
     local cMain, cHover, cTextH
 
     if painelBloqueado then
         cMain = imgui.ImVec4(0.80, 0.10, 0.10, 1.0)
         cHover = imgui.ImVec4(1.00, 0.25, 0.25, 1.0)
-        cTextH = imgui.ImVec4(1.0, 0.1, 0.1, 1.0) 
+        cTextH = imgui.ImVec4(1.0, 0.1, 0.1, 1.0)
     else
         local time = os.clock()
         local tIndex = temaAtual.v
 
         if tIndex <= 11 then
-            -- Temas Padrões
             local t = temasCores[tIndex] or temasCores[0]
             cMain, cHover, cTextH = t[1], t[2], t[3]
 
         elseif tIndex >= 12 and tIndex <= 23 then
-            -- Temas Pisca-Pisca Sincronizado
             local baseTheme = tIndex - 12
             local t = temasCores[baseTheme]
-            
-            -- Calculo da pulsação e aplicação a TODAS as camadas
+
             local pulso = (math.sin(time * velPiscar.v * 3) + 1) / 2
             local brilho = 0.3 + (0.7 * pulso)
-            
+
             cMain = imgui.ImVec4(t[1].x * brilho, t[1].y * brilho, t[1].z * brilho, 1.0)
             cHover = imgui.ImVec4(t[2].x * brilho, t[2].y * brilho, t[2].z * brilho, 1.0)
             cTextH = imgui.ImVec4(t[3].x * brilho, t[3].y * brilho, t[3].z * brilho, 1.0)
 
         elseif tIndex == 24 then
-            -- Tema Arco-Íris (RGB) Sincronizado
             local r = (math.sin(time * velRGB.v) + 1) / 2
             local g = (math.sin(time * velRGB.v + 2.09) + 1) / 2
             local b = (math.sin(time * velRGB.v + 4.18) + 1) / 2
-            
+
             cMain = imgui.ImVec4(r, g, b, 1.0)
-            -- Adiciona um aumento leve para hover e texto, mantendo a escala de cor correta
             cHover = imgui.ImVec4(math.min(1.0, r + 0.2), math.min(1.0, g + 0.2), math.min(1.0, b + 0.2), 1.0)
             cTextH = imgui.ImVec4(math.min(1.0, r + 0.4), math.min(1.0, g + 0.4), math.min(1.0, b + 0.4), 1.0)
         end
@@ -205,22 +189,22 @@ function imgui.OnDrawFrame()
 
     style.WindowRounding = 8.0
     style.ScrollbarSize = 10.0
-    
+
     colors[imgui.Col.WindowBg] = imgui.ImVec4(0.06, 0.06, 0.06, 0.98)
     colors[imgui.Col.ChildWindowBg] = imgui.ImVec4(0.08, 0.08, 0.08, 0.00)
-    
+
     colors[imgui.Col.TitleBg]          = imgui.ImVec4(0.07, 0.07, 0.07, 1.0)
     colors[imgui.Col.TitleBgActive]    = imgui.ImVec4(0.07, 0.07, 0.07, 1.0)
     colors[imgui.Col.TitleBgCollapsed] = imgui.ImVec4(0.07, 0.07, 0.07, 1.0)
-    
-    colors[imgui.Col.Button] = imgui.ImVec4(0.12, 0.12, 0.12, 1.0) 
+
+    colors[imgui.Col.Button] = imgui.ImVec4(0.12, 0.12, 0.12, 1.0)
     colors[imgui.Col.ButtonHovered] = imgui.ImVec4(cHover.x, cHover.y, cHover.z, 0.6)
-    colors[imgui.Col.ButtonActive] = imgui.ImVec4(cHover.x, cHover.y, cHover.z, 0.9) 
-    
+    colors[imgui.Col.ButtonActive] = imgui.ImVec4(cHover.x, cHover.y, cHover.z, 0.9)
+
     colors[imgui.Col.FrameBg] = imgui.ImVec4(0.10, 0.10, 0.10, 1.0)
     colors[imgui.Col.FrameBgHovered] = imgui.ImVec4(0.15, 0.15, 0.15, 1.0)
     colors[imgui.Col.FrameBgActive] = imgui.ImVec4(0.20, 0.20, 0.20, 1.0)
-    
+
     colors[imgui.Col.Header] = imgui.ImVec4(0.15, 0.15, 0.15, 1.0)
     colors[imgui.Col.HeaderHovered] = imgui.ImVec4(0.20, 0.20, 0.20, 1.0)
     colors[imgui.Col.HeaderActive] = imgui.ImVec4(0.25, 0.25, 0.25, 1.0)
@@ -230,14 +214,13 @@ function imgui.OnDrawFrame()
     colors[imgui.Col.ScrollbarGrabHovered] = cHover
     colors[imgui.Col.ScrollbarGrabActive] = cTextH
 
-    -- Sincronizando a barrinha do Slider Float (Scroll sem cor)
     colors[imgui.Col.SliderGrab] = imgui.ImVec4(cMain.x, cMain.y, cMain.z, 0.8)
     colors[imgui.Col.SliderGrabActive] = cTextH
 
     colors[imgui.Col.CloseButton] = imgui.ImVec4(cMain.x, cMain.y, cMain.z, 0.7)
     colors[imgui.Col.CloseButtonHovered] = imgui.ImVec4(cHover.x, cHover.y, cHover.z, 0.9)
     colors[imgui.Col.CloseButtonActive] = cTextH
-    
+
     colors[imgui.Col.Text] = cTextH
     colors[imgui.Col.CheckMark] = cMain
 
@@ -254,7 +237,7 @@ function imgui.OnDrawFrame()
     else
         imgui.Begin("CENTRAL FREESTYLE", janela, window_flags)
     end
-        
+
         colors[imgui.Col.Text] = imgui.ImVec4(0.9, 0.9, 0.9, 1.0)
 
         local parentPos = imgui.GetWindowPos()
@@ -265,56 +248,55 @@ function imgui.OnDrawFrame()
             local childWidth = size.x - 60
             local childHeight = size.y - 100
             imgui.SetCursorPos(imgui.ImVec2(30, 60))
-            
+
             imgui.BeginChild("LockScreen", imgui.ImVec2(childWidth, childHeight), false)
-                local totalGroupHeight = 220 
+                local totalGroupHeight = 220
                 imgui.SetCursorPosY((childHeight / 2) - (totalGroupHeight / 2))
 
                 local textoTitulo = "ACESSO SUSPENSO"
                 local textoAviso1 = "Por questões de segurança, este painel foi bloqueado"
                 local textoAviso2 = "após sucessivas tentativas incorretas."
                 local textoAviso3 = "Favor contatar o suporte da liderança para solicitar a liberação."
-                
+
                 imgui.SetCursorPosX((childWidth - imgui.CalcTextSize(textoTitulo).x) / 2)
-                imgui.TextColored(cTextH, textoTitulo) -- Vai pegar o vermelho base do bloqueio
+                imgui.TextColored(cTextH, textoTitulo)
                 imgui.Spacing(); imgui.Spacing()
-                
+
                 imgui.SetCursorPosX((childWidth - imgui.CalcTextSize(textoAviso1).x) / 2)
                 imgui.TextColored(imgui.ImVec4(0.8, 0.8, 0.8, 1.0), textoAviso1)
-                
+
                 imgui.SetCursorPosX((childWidth - imgui.CalcTextSize(textoAviso2).x) / 2)
                 imgui.TextColored(imgui.ImVec4(0.8, 0.8, 0.8, 1.0), textoAviso2)
-                
+
                 imgui.Spacing()
                 imgui.SetCursorPosX((childWidth - imgui.CalcTextSize(textoAviso3).x) / 2)
                 imgui.TextColored(imgui.ImVec4(0.7, 0.7, 0.7, 1.0), textoAviso3)
-                
+
                 imgui.Spacing(); imgui.Spacing(); imgui.Spacing()
-                
+
                 local inputWidth = 220
                 local labelSenha = "Insira o código de autenticação para desbloqueio:"
                 local labelSize = imgui.CalcTextSize(labelSenha)
-                
+
                 imgui.SetCursorPosX((childWidth - labelSize.x) / 2)
                 imgui.TextColored(imgui.ImVec4(0.6, 0.6, 0.6, 1.0), labelSenha)
-                
+
                 imgui.SetCursorPosX((childWidth - inputWidth) / 2)
                 imgui.PushItemWidth(inputWidth)
                 imgui.InputText("##senhaMaster", inputSenhaMaster, imgui.InputTextFlags.Password)
                 imgui.PopItemWidth()
-                
+
                 if senhaMasterIncorreta then
                     local erroMsg = "Senha incorreta!"
                     local erroSize = imgui.CalcTextSize(erroMsg)
                     imgui.SetCursorPosX((childWidth - erroSize.x) / 2)
                     imgui.TextColored(cTextH, erroMsg)
                 end
-                
+
                 imgui.Spacing(); imgui.Spacing()
-                
+
                 imgui.SetCursorPosX((childWidth - 140) / 2)
-                
-                -- Mudando a cor EXCLUSIVA desse botão (Fundo preto, Hover/Active vermelho do título)
+
                 imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0.06, 0.06, 0.06, 1.0))
                 imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.80, 0.10, 0.10, 0.8))
                 imgui.PushStyleColor(imgui.Col.ButtonActive, cTextH)
@@ -323,7 +305,7 @@ function imgui.OnDrawFrame()
                     if _vf(tostring(inputSenhaMaster.v), _td) then
                         painelBloqueado = false
                         cfg.config.bloqueado = false
-                        inicfg.save(cfg, configPath) 
+                        inicfg.save(cfg, configPath)
                         senhaMasterIncorreta = false
                         senhaIncorreta = false
                         senhaIncorretaGer = false
@@ -336,25 +318,24 @@ function imgui.OnDrawFrame()
                         senhaMasterIncorreta = true
                     end
                 end
-                -- Restaurando as cores normais dos botões para o resto do script
                 imgui.PopStyleColor(3)
 
             imgui.EndChild()
         else
             imgui.BeginChild("Side", imgui.ImVec2(170, 0), true, imgui.WindowFlags.NoScrollbar)
                 local menus = {"ARENAS", "ANUNCIAR FF", "RECRUTAMENTO", "GERENCIAR", "CRIAR SALA", "REGRAS", "STATUS", "INFO", "CONFIG"}
-                for i, n in ipairs(menus) do 
-                    if aba == i then 
+                for i, n in ipairs(menus) do
+                    if aba == i then
                         imgui.PushStyleColor(imgui.Col.Text, cTextH)
                     else
                         imgui.PushStyleColor(imgui.Col.Text, imgui.ImVec4(0.6, 0.6, 0.6, 1.0))
                     end
-                    
-                    if imgui.Button(n, imgui.ImVec2(-1, 38)) then proximaAba = i end 
-                    
+
+                    if imgui.Button(n, imgui.ImVec2(-1, 38)) then proximaAba = i end
+
                     imgui.PopStyleColor()
                 end
-                
+
                 imgui.PushStyleColor(imgui.Col.Text, imgui.ImVec4(0.6, 0.6, 0.6, 1.0))
                 if imgui.Button("SPAWNAR", imgui.ImVec2(-1, 38)) then sampSendChat("/hqf") end
                 imgui.PopStyleColor()
@@ -363,40 +344,40 @@ function imgui.OnDrawFrame()
             imgui.SameLine()
 
             imgui.BeginChild("Main", imgui.ImVec2(0, 0), true, imgui.WindowFlags.AlwaysVerticalScrollbar)
-                
-                if aba == 1 then -- ARENAS
-                    imgui.TextColored(cTextH, "CATÁLOGO DE ARENAS"); 
+
+                if aba == 1 then
+                    imgui.TextColored(cTextH, "CATÁLOGO DE ARENAS");
                     imgui.TextColored(imgui.ImVec4(0.5, 0.5, 0.5, 1.0), "Selecione um local para treinar.")
                     imgui.Separator(); imgui.Spacing()
 
-                    imgui.Columns(2, "grid", false) 
+                    imgui.Columns(2, "grid", false)
                     local arenas = {
-                        {"[M4] Campo", "/m4", "Combate em área aberta."}, 
-                        {"[M4-2] Padrão", "/m42", "Treino de precisão fixa."}, 
-                        {"[AK] Pesada", "/ak", "Dano alto e recuo médio."}, 
-                        {"[SNIPER] Longa", "/snp", "Treino de longa distância."}, 
-                        {"[PT-1] Damínio", "/pt", "Combate em área aberta."}, 
+                        {"[M4] Campo", "/m4", "Combate em área aberta."},
+                        {"[M4-2] Padrão", "/m42", "Treino de precisão fixa."},
+                        {"[AK] Pesada", "/ak", "Dano alto e recuo médio."},
+                        {"[SNIPER] Longa", "/snp", "Treino de longa distância."},
+                        {"[PT-1] Damínio", "/pt", "Combate em área aberta."},
                         {"[PT-2] Prédio", "/predio", "Verticalidade e altura."},
-                        {"[PT-3] Ammu", "/ammu", "Espaço aberto / fechado."}, 
+                        {"[PT-3] Ammu", "/ammu", "Espaço aberto / fechado."},
                         {"[SHOT] Rústica", "/shot", "Combate de curto alcance."}
                     }
-                    
+
                     for i, v in ipairs(arenas) do
-                        imgui.TextColored(cTextH, v[1]) 
-                        imgui.TextColored(imgui.ImVec4(0.6, 0.6, 0.6, 1.0), v[3]) 
+                        imgui.TextColored(cTextH, v[1])
+                        imgui.TextColored(imgui.ImVec4(0.6, 0.6, 0.6, 1.0), v[3])
                         if imgui.Button("ENTRAR##"..i, imgui.ImVec2(-1, 32)) then sampSendChat(v[2]) end
                         imgui.Spacing()
                         imgui.NextColumn()
                     end
                     imgui.Columns(1); imgui.Spacing(); imgui.Separator();
                     imgui.Spacing(); imgui.Spacing()
-                                        
+
                     imgui.Spacing()
                     if imgui.Button("SAIR DA ARENA ATUAL", imgui.ImVec2(-1, 30)) then sampSendChat("/sair") end
 
-                elseif aba == 2 then -- ANUNCIAR FF
+                elseif aba == 2 then
                     imgui.TextColored(cTextH, "CONFIGURAÇÃO DO CONFRONTO"); imgui.Separator(); imgui.Spacing()
-                    
+
                     imgui.Columns(2, "times_ff", false)
                     imgui.Text("Seu Time:")
                     imgui.PushItemWidth(-1); imgui.InputText("##meutime", nomeMeuTime); imgui.PopItemWidth()
@@ -404,26 +385,26 @@ function imgui.OnDrawFrame()
                     imgui.Text("Time Adversário:")
                     imgui.PushItemWidth(-1); imgui.InputText("##adv", nomeADV); imgui.PopItemWidth()
                     imgui.Columns(1)
-                    
+
                     imgui.Spacing(); imgui.Separator(); imgui.Spacing()
 
                     imgui.TextColored(cTextH, "PLACAR E RESULTADO FINAL")
                     imgui.Spacing()
-                    
+
                     imgui.Columns(3, "placar_ff_new", false)
                     imgui.SetColumnWidth(0, 110); imgui.SetColumnWidth(1, 40)
-                    
+
                     imgui.Text("Nosso Placar:")
                     imgui.PushItemWidth(90); imgui.InputInt("##p1", placarFF); imgui.PopItemWidth()
-                    
+
                     imgui.NextColumn()
                     imgui.SetCursorPosY(imgui.GetCursorPosY() + 20); imgui.TextColored(cTextH, "  X")
-                    
+
                     imgui.NextColumn()
                     imgui.Text("Placar Deles:")
                     imgui.PushItemWidth(90); imgui.InputInt("##p2", placarADV); imgui.PopItemWidth()
                     imgui.Columns(1)
-                    
+
                     imgui.Spacing()
                     imgui.Text("Vencedor da Partida:")
                     imgui.SameLine()
@@ -435,35 +416,34 @@ function imgui.OnDrawFrame()
                     imgui.Text("Tipo de MD:")
                     imgui.SameLine()
                     imgui.PushItemWidth(100); imgui.InputInt("##md", tipoMD); imgui.PopItemWidth()
-                    
+
                     imgui.Spacing(); imgui.Spacing()
-                    
-                    if imgui.Button("ANUNCIAR CONFRONTO", imgui.ImVec2(-1, 35)) then 
+
+                    if imgui.Button("ANUNCIAR CONFRONTO", imgui.ImVec2(-1, 35)) then
                         local txtGG = ""
                         if nomeVencedor.v and nomeVencedor.v ~= "" then
                             txtGG = " GG " .. nomeVencedor.v
                         end
 
-                        sampSendChat(string.format("/g FF %s [%d] X [%d] %s MD%d%s", nomeMeuTime.v, placarFF.v, placarADV.v, nomeADV.v, tipoMD.v, txtGG)) 
-                        nomeVencedor.v = "" 
+                        sampSendChat(string.format("/g FF %s [%d] X [%d] %s MD%d%s", nomeMeuTime.v, placarFF.v, placarADV.v, nomeADV.v, tipoMD.v, txtGG))
+                        nomeVencedor.v = ""
                         janela.v = false
                     end
 
-                elseif aba == 3 then -- RECRUTAMENTO
+                elseif aba == 3 then
                     if _authRec ~= _tg then
                         imgui.TextColored(cTextH, "ACESSO RESTRITO"); imgui.Separator(); imgui.Spacing()
                         imgui.Text("Digite a senha:")
                         imgui.PushItemWidth(150); imgui.InputText("##senha", inputSenha, imgui.InputTextFlags.Password); imgui.PopItemWidth()
-                        
+
                         if senhaIncorreta then
                             imgui.TextColored(imgui.ImVec4(1.0, 0.0, 0.0, 1.0), "Senha incorreta!")
                         end
 
-                        -- Cooldown após múltiplas tentativas
                         if _fcRec >= _cdThresh and (os.clock() - _ltRec) < _cdDur then
                             local restante = math.ceil(_cdDur - (os.clock() - _ltRec))
                             imgui.Spacing()
-                            imgui.TextColored(imgui.ImVec4(1.0, 0.5, 0.0, 1.0), 
+                            imgui.TextColored(imgui.ImVec4(1.0, 0.5, 0.0, 1.0),
                                 string.format("Aguarde %d segundos para tentar novamente.", restante))
                         else
                             imgui.Spacing()
@@ -479,7 +459,7 @@ function imgui.OnDrawFrame()
                                     _fcRec = _fcRec + 1
                                     _ltRec = os.clock()
                                     if _fcRec >= _maxFail then
-                                        painelBloqueado = true 
+                                        painelBloqueado = true
                                         cfg.config.bloqueado = true
                                         inicfg.save(cfg, configPath)
                                     end
@@ -492,7 +472,7 @@ function imgui.OnDrawFrame()
                         imgui.Text("Meus Pontos:"); imgui.PushItemWidth(160); imgui.InputInt("##rp1", pontosRecrutador); imgui.PopItemWidth()
                         imgui.Text("Pontos Cantidado:"); imgui.PushItemWidth(160); imgui.InputInt("##rp2", pontosJogador); imgui.PopItemWidth()
                         imgui.Text("Resultado:"); imgui.PushItemWidth(160); imgui.Combo("##rst", recrutaStatus, arrResultados); imgui.PopItemWidth()
-                        
+
                         if imgui.Button("ANUNCIAR RECRUTAMENTO", imgui.ImVec2(-1, 30)) then
                             local s = {"EM ANALISE", "APROVADO", "REPROVADO"}
                             sampSendChat(string.format("/g FF RECRUTAMENTO Freestyle [%d] x [%d] %s %s", pontosRecrutador.v, pontosJogador.v, nomeRecruta.v, s[recrutaStatus.v+1]))
@@ -511,27 +491,26 @@ function imgui.OnDrawFrame()
                         for _, v in ipairs(rRec) do
                             imgui.TextColored(cTextH, v[1]); imgui.TextWrapped(v[2]); imgui.Spacing()
                         end
-                        
+
                         imgui.Spacing(); imgui.Separator(); imgui.Spacing()
 
                         if imgui.Button("BLOQUEAR ABA", imgui.ImVec2(-1, 30)) then _authRec = 0 end
                     end
 
-                elseif aba == 4 then -- GERENCIAR
+                elseif aba == 4 then
                     if _authGer ~= _tg then
                         imgui.TextColored(cTextH, "ACESSO RESTRITO"); imgui.Separator(); imgui.Spacing()
                         imgui.Text("Digite a senha:")
                         imgui.PushItemWidth(150); imgui.InputText("##senhaGer", inputSenhaGer, imgui.InputTextFlags.Password); imgui.PopItemWidth()
-                        
-                        if senhaIncorretaGer then 
-                            imgui.TextColored(imgui.ImVec4(1.0, 0.0, 0.0, 1.0), "Senha incorreta!") 
+
+                        if senhaIncorretaGer then
+                            imgui.TextColored(imgui.ImVec4(1.0, 0.0, 0.0, 1.0), "Senha incorreta!")
                         end
 
-                        -- Cooldown após múltiplas tentativas
                         if _fcGer >= _cdThresh and (os.clock() - _ltGer) < _cdDur then
                             local restante = math.ceil(_cdDur - (os.clock() - _ltGer))
                             imgui.Spacing()
-                            imgui.TextColored(imgui.ImVec4(1.0, 0.5, 0.0, 1.0), 
+                            imgui.TextColored(imgui.ImVec4(1.0, 0.5, 0.0, 1.0),
                                 string.format("Aguarde %d segundos para tentar novamente.", restante))
                         else
                             imgui.Spacing()
@@ -547,7 +526,7 @@ function imgui.OnDrawFrame()
                                     _fcGer = _fcGer + 1
                                     _ltGer = os.clock()
                                     if _fcGer >= _maxFail then
-                                        painelBloqueado = true 
+                                        painelBloqueado = true
                                         cfg.config.bloqueado = true
                                         inicfg.save(cfg, configPath)
                                     end
@@ -562,11 +541,11 @@ function imgui.OnDrawFrame()
                         if imgui.Button("CONVIDAR", imgui.ImVec2(-1, 30)) then sampSendChat("/convidar "..idPlayer.v) end
                         if imgui.Button("PROMOVER", imgui.ImVec2(-1, 30)) then sampSendChat("/promover "..idPlayer.v.." "..(cargoID.v+1)) end
                         if imgui.Button("DEMITIR", imgui.ImVec2(-1, 30)) then sampSendChat("/demitir "..idPlayer.v) end
-                         
+
                         if imgui.Button("BLOQUEAR ABA", imgui.ImVec2(-1, 30)) then _authGer = 0 end
                     end
 
-                elseif aba == 5 then -- CRIAR SALA
+                elseif aba == 5 then
                     imgui.TextColored(cTextH, "SALA DE TREINO"); imgui.Separator(); imgui.Spacing()
                     imgui.Text("Vagas:"); imgui.PushItemWidth(120); imgui.InputInt("##v", salaQtd); imgui.PopItemWidth()
                     imgui.Text("Arma ID:"); imgui.PushItemWidth(120); imgui.InputInt("##a", salaArma); imgui.PopItemWidth()
@@ -576,7 +555,7 @@ function imgui.OnDrawFrame()
                     if imgui.Button("SAIR DA SALA", imgui.ImVec2(-1, 30)) then sampSendChat("/sairsala") end
                     if imgui.Button("DELETAR SALA", imgui.ImVec2(-1, 30)) then sampSendChat("/deletarsala") end
 
-                elseif aba == 6 then -- REGRAS
+                elseif aba == 6 then
                     imgui.TextColored(cTextH, "REGRAS"); imgui.Separator(); imgui.Spacing()
                     local rFam = {
                         {"1. Respeito à hierarquia", "Respeite sempre a hierarquia e todos os membros que ocupam cargos superiores."},
@@ -596,7 +575,7 @@ function imgui.OnDrawFrame()
                         imgui.TextColored(cTextH, v[1]); imgui.TextWrapped(v[2]); imgui.Spacing()
                     end
 
-                elseif aba == 7 then -- STATUS
+                elseif aba == 7 then
                     imgui.TextColored(cTextH, "STATUS DO JOGADOR"); imgui.Separator(); imgui.Spacing()
                     local myId = "N/A"; local myPing = 0; local myScore = 0
                     if sampIsLocalPlayerSpawned() then
@@ -612,22 +591,21 @@ function imgui.OnDrawFrame()
                     imgui.TextColored(cTextH, "PING:"); imgui.NextColumn(); imgui.Text(tostring(myPing) .. "ms"); imgui.NextColumn()
                     imgui.TextColored(cTextH, "LEVEL:"); imgui.NextColumn(); imgui.Text(tostring(myScore)); imgui.NextColumn()
                     imgui.TextColored(cTextH, "SESSÃO:"); imgui.NextColumn(); imgui.Text(string.format("%02d:%02d:%02d", math.floor(sOn/3600), math.floor(sOn/60)%60, sOn%60)); imgui.NextColumn()
-                    imgui.TextColored(cTextH, "SKIN FAMÍLIA:"); imgui.NextColumn();imgui.Text("   45"); 
+                    imgui.TextColored(cTextH, "SKIN FAMÍLIA:"); imgui.NextColumn();imgui.Text("   45");
                     imgui.Columns(1)
 
-                elseif aba == 8 then -- INFO
+                elseif aba == 8 then
                     imgui.TextColored(cTextH, "LIDERANÇA SUPREMA"); imgui.Separator(); imgui.Spacing()
                     local lideres = {"Falcon", "Jamaica171", "Venom_Arcade"}
                     for _, lider in ipairs(lideres) do
                         imgui.TextColored(cTextH, "•"); imgui.SameLine(); imgui.Text(lider)
                     end
 
-                elseif aba == 9 then -- CONFIG
+                elseif aba == 9 then
                     imgui.TextColored(cTextH, "AJUSTES"); imgui.Separator(); imgui.Spacing()
-                    
+
                     imgui.Text("Tema:"); imgui.PushItemWidth(200); imgui.Combo("##t", temaAtual, arrTemas); imgui.PopItemWidth()
-                    
-                    -- Se for um tema animado, mostra os controles de velocidade
+
                     if temaAtual.v >= 12 and temaAtual.v <= 23 then
                         imgui.Spacing()
                         imgui.Text("Velocidade do Piscar:")
@@ -640,19 +618,19 @@ function imgui.OnDrawFrame()
 
                     imgui.Spacing()
                     imgui.Checkbox("Mostrar aviso de menu aberto / fechado no chat", msgChat)
-                    
+
                     imgui.Spacing(); imgui.Spacing()
-                    
+
                     if imgui.Button("SALVAR CONFIGURAÇÕES", imgui.ImVec2(-1, 30)) then
                         cfg.config.tema = temaAtual.v
-                        cfg.config.notificacoes = msgChat.v 
+                        cfg.config.notificacoes = msgChat.v
                         cfg.config.velPiscar = velPiscar.v
                         cfg.config.velRGB = velRGB.v
 
                         cfg.config.posX, cfg.config.posY = parentPos.x, parentPos.y
                         cfg.config.width, cfg.config.height = parentSize.x, parentSize.y
                         inicfg.save(cfg, configPath)
-                        
+
                         sampAddChatMessage("{FFFF00}[Freestyle] {FFFFFF}Salvo com sucesso.", -1)
                         janela.v = false; wasOpen = false
                     end
@@ -660,5 +638,5 @@ function imgui.OnDrawFrame()
             imgui.EndChild()
         end
     imgui.End()
-    aba = proximaAba 
+    aba = proximaAba
 end
