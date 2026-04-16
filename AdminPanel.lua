@@ -996,9 +996,7 @@ function imgui.OnDrawFrame()
     imgui.SetNextWindowPos(imgui.ImVec2(config.settings.posX, config.settings.posY), imgui.Cond.FirstUseEver)
     imgui.SetNextWindowSize(imgui.ImVec2(config.settings.tamanhoX, config.settings.tamanhoY), imgui.Cond.FirstUseEver)
 
-    imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.ImVec2(0, 0))
     if imgui.Begin("##PainelAdmin", janela, imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoTitleBar + imgui.WindowFlags.NoScrollbar) then
-        imgui.PopStyleVar()
         local mainWindowPos = imgui.GetWindowPos()
         local mainWindowSize = imgui.GetWindowSize()
         mainWinPos = mainWindowPos
@@ -1109,8 +1107,11 @@ function imgui.OnDrawFrame()
             imgui.PushStyleColor(imgui.Col.WindowBg, imgui.ImVec4(0.10, 0.06, 0.06, 0.98))
             imgui.PushStyleColor(imgui.Col.TitleBgActive, imgui.ImVec4(0.55, 0.08, 0.08, 1.00))
             imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.ImVec2(12, 10))
+            local modalAberto = imgui.Begin("CONFIRMAR ACAO##modal", nil, imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove)
+            imgui.PopStyleVar()
+            imgui.PopStyleColor(2)
 
-            if imgui.Begin("CONFIRMAR ACAO##modal", nil, imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove) then
+            if modalAberto then
                 imgui.Spacing()
                 imgui.TextColored(CORES.laranja, "Tem certeza que deseja executar esta acao?")
                 imgui.Spacing()
@@ -1139,12 +1140,8 @@ function imgui.OnDrawFrame()
                 end
                 imgui.End()
             end
-            imgui.PopStyleVar()
-            imgui.PopStyleColor(2)
         end
 
         imgui.End()
-    else
-        imgui.PopStyleVar()
     end
 end
