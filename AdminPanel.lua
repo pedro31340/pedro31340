@@ -879,7 +879,7 @@ function desenharPaginaPunicoes()
     imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.65, 0.38, 0.12, 1.00))
     imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.80, 0.45, 0.10, 1.00))
     if imgui.Button("Cadeia##p5", imgui.ImVec2(pW, pH)) then
-        acaoSom("/cadeia " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(tempo.v) .. " " .. sanitizarEntrada(motivo.v))
+        verificarPlayerEExecutar("/cadeia " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(tempo.v) .. " " .. sanitizarEntrada(motivo.v))
     end
     imgui.SameLine(0, 8)
     if imgui.Button("Ag. Cad##p6", imgui.ImVec2(pW, pH)) then
@@ -887,16 +887,16 @@ function desenharPaginaPunicoes()
         if a == "" then
             sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Campo obrigatorio: Avisos Cadeia"), -1)
         else
-            acaoSom("/agendarcadeia " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(tempo.v) .. " " .. a .. " " .. sanitizarEntrada(motivo.v))
+            verificarPlayerEExecutar("/agendarcadeia " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(tempo.v) .. " " .. a .. " " .. sanitizarEntrada(motivo.v))
         end
     end
     imgui.Spacing()
     if imgui.Button("ADV##p7", imgui.ImVec2(pW, pH)) then
-        acaoSom("/adv " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(adv.v))
+        verificarPlayerEExecutar("/adv " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(adv.v))
     end
     imgui.SameLine(0, 8)
     if imgui.Button("Rem. Tela##p8", imgui.ImVec2(pW, pH)) then
-        acaoSom("/removertelagem " .. sanitizarEntrada(campoNickIDF.v))
+        verificarPlayerEExecutar("/removertelagem " .. sanitizarEntrada(campoNickIDF.v))
     end
     imgui.PopStyleColor(3)
     imgui.Spacing()
@@ -907,27 +907,37 @@ function desenharPaginaPunicoes()
     imgui.PushStyleColor(imgui.Col.ButtonHovered, CORES.btnVerdeHover)
     imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.10, 0.45, 0.25, 1.00))
     if imgui.Button("Desban##p9", imgui.ImVec2(pW, pH)) then
-        acaoSom("/desbanconta " .. sanitizarEntrada(campoNickIDF.v))
+        verificarPlayerEExecutar("/desbanconta " .. sanitizarEntrada(campoNickIDF.v))
     end
     imgui.SameLine(0, 8)
     if imgui.Button("Limp. Ban##p10", imgui.ImVec2(pW, pH)) then
-        acaoSom("/limparban " .. sanitizarEntrada(campoNickIDF.v))
+        verificarPlayerEExecutar("/limparban " .. sanitizarEntrada(campoNickIDF.v))
     end
     imgui.Spacing()
     if imgui.Button("Limp. Cad##p11", imgui.ImVec2(pW, pH)) then
-        acaoSom("/limparcadeia " .. sanitizarEntrada(campoNickIDF.v))
+        verificarPlayerEExecutar("/limparcadeia " .. sanitizarEntrada(campoNickIDF.v))
     end
     imgui.SameLine(0, 8)
     if imgui.Button("Rem. ADV##p12", imgui.ImVec2(pW, pH)) then
-        acaoSom("/retiraradv " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(adv.v))
+        verificarPlayerEExecutar("/retiraradv " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(adv.v))
     end
     imgui.Spacing()
     if imgui.Button("Desb. IP##p13", imgui.ImVec2(pW, pH)) then
-        acaoSom("/desbanip " .. sanitizarEntrada(campoIP.v))
+        local ip = sanitizarEntrada(campoIP.v)
+        if ip == "" then
+            sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha o campo IP."), -1)
+        else
+            acaoSom("/desbanip " .. ip)
+        end
     end
     imgui.SameLine(0, 8)
     if imgui.Button("Liberar IP##p14", imgui.ImVec2(pW, pH)) then
-        acaoSom("/liberarip " .. sanitizarEntrada(campoIP.v))
+        local ip = sanitizarEntrada(campoIP.v)
+        if ip == "" then
+            sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha o campo IP."), -1)
+        else
+            acaoSom("/liberarip " .. ip)
+        end
     end
     imgui.PopStyleColor(3)
 
