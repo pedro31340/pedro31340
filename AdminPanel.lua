@@ -88,14 +88,6 @@ end
 -- ==========================================
 -- SEGURANCA: Validacao de Entrada
 -- ==========================================
-function validarCampo(valor, nomeExibicao)
-    if valor == nil or valor == "" then
-        sampAddChatMessage(u8("{FF6600}[Painel] {FFFFFF}Campo obrigatorio vazio: " .. nomeExibicao), -1)
-        return false
-    end
-    return true
-end
-
 function validarMotivo(m)
     if m == nil or m == "" then return false end
     if #m < 3 then return false end
@@ -519,10 +511,11 @@ function imgui.OnDrawFrame()
                     imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(corBotoes.v[1], corBotoes.v[2], corBotoes.v[3], 1.0))
                     imgui.PushStyleColor(imgui.Col.Text, imgui.ImVec4(0, 0, 0, 1))
                 end
+                local pushed = (abaAtual == i)
                 if imgui.Button(nome .. "##aba" .. i, imgui.ImVec2(abaW, 30)) then
                     abaAtual = i
                 end
-                if abaAtual == i then
+                if pushed then
                     imgui.PopStyleColor(3)
                 end
             end
