@@ -268,6 +268,11 @@ function acaoSom(comando)
 end
 
 function acaoPerigosa(descricao, comando)
+    local id = sanitizarEntrada(campoNickIDF.v)
+    if id == "" then
+        sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Selecione um player ou preencha o ID/Nick."), -1)
+        return
+    end
     if confirmarAcao.v then
         acaoPendente = descricao
         acaoComando = comando
@@ -1199,7 +1204,7 @@ function desenharPaginaAparencia()
             }
             inicfg.save(config, configFile)
             sampAddChatMessage(u8("{FFFF00}[Painel Admin] {FFFFFF}Configuracoes salvas com sucesso!"), -1)
-            acaoSom()
+            addOneOffSound(0, 0, 0, somSelecionado.v)
         end)
     imgui.EndChild()
     imgui.PopStyleColor()
