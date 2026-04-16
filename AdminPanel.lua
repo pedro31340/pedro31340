@@ -87,6 +87,10 @@ local mostrarConfirmacao = false
 local ultimoComando = 0
 local cooldownSegundos = config.settings.cooldownCmd
 
+-- Posicao/tamanho da janela principal (para salvar config corretamente)
+local mainWinPos = nil
+local mainWinSize = nil
+
 -- Hot-Reload: variaveis de controle (sempre ativo, automatico)
 local hotReloadIntervalo = 3
 local hotReloadUltimaVerificacao = 0
@@ -953,11 +957,11 @@ function desenharPaginaAparencia()
         imgui.Separator()
         imgui.Spacing()
         botaoAcento("  Salvar Configuracoes  ##save", imgui.ImVec2(-1, 36), function()
-            local wPos = imgui.GetWindowPos()
-            local wSize = imgui.GetWindowSize()
             config.settings = {
-                posX = wPos.x, posY = wPos.y,
-                tamanhoX = wSize.x, tamanhoY = wSize.y,
+                posX = mainWinPos and mainWinPos.x or config.settings.posX,
+                posY = mainWinPos and mainWinPos.y or config.settings.posY,
+                tamanhoX = mainWinSize and mainWinSize.x or config.settings.tamanhoX,
+                tamanhoY = mainWinSize and mainWinSize.y or config.settings.tamanhoY,
                 somID = somSelecionado.v,
                 confirmarPunicao = confirmarAcao.v,
                 cooldownCmd = cooldownSegundos
@@ -997,6 +1001,8 @@ function imgui.OnDrawFrame()
         imgui.PopStyleVar()
         local mainWindowPos = imgui.GetWindowPos()
         local mainWindowSize = imgui.GetWindowSize()
+        mainWinPos = mainWindowPos
+        mainWinSize = mainWindowSize
         local sidebarWidth = 200
 
         -- ==========================================
