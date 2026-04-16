@@ -1394,6 +1394,6 @@ function imgui.OnDrawFrame()
             imgui.End()
         end
 
-        imgui.End()
     end
+    imgui.End()
 end
