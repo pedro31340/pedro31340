@@ -3,15 +3,21 @@ local key = require 'vkeys'
 local inicfg = require 'inicfg'
 
 -- ==========================================
+-- HOT-RELOAD: Auto-atualizacao do script
+-- Detecta mudancas no arquivo e recarrega
+-- automaticamente sem precisar relogar.
+-- ==========================================
+
+-- ==========================================
 -- CONFIGURACAO DE ARQUIVO
 -- ==========================================
 local configFile = "AdminPanelConfig.ini"
 local defConfig = {
     settings = {
         corR = 0.07, corG = 0.08, corB = 0.07, corA = 1.00,
-        btnR = 0.18, btnG = 0.65, btnB = 0.35, btnA = 1.00,
+        btnR = 0.23, btnG = 0.65, btnB = 0.85, btnA = 1.00,
         textR = 1.00, textG = 1.00, textB = 1.00, textA = 1.00,
-        titR = 0.18, titG = 0.65, titB = 0.35, titA = 1.00,
+        titR = 0.23, titG = 0.65, titB = 0.85, titA = 1.00,
         posX = 400, posY = 300,
         tamanhoX = 860, tamanhoY = 700,
         somID = 1057,
@@ -48,6 +54,12 @@ local mostrarConfirmacao = false
 local ultimoComando = 0
 local cooldownSegundos = config.settings.cooldownCmd
 
+-- Hot-Reload: variaveis de controle
+local hotReloadAtivo = true
+local hotReloadIntervalo = 3 -- verifica a cada 3 segundos
+local hotReloadUltimaVerificacao = 0
+local hotReloadHashAnterior = nil
+
 -- ==========================================
 -- BUFFERS
 -- ==========================================
@@ -64,6 +76,49 @@ local adv = imgui.ImBuffer(16)
 local campoIP = imgui.ImBuffer(64)
 local pesquisa = imgui.ImBuffer(64)
 local campoNickIDF = imgui.ImBuffer(64)
+
+-- ==========================================
+-- HOT-RELOAD: Funcoes de auto-atualizacao
+-- ==========================================
+function calcularHashArquivo(caminho)
+    local arquivo = io.open(caminho, "rb")
+    if not arquivo then return nil end
+    local conteudo = arquivo:read("*a")
+    arquivo:close()
+    if not conteudo then return nil end
+    -- Hash simples mas eficaz (DJB2)
+    local hash = 5381
+    for i = 1, #conteudo do
+        hash = ((hash * 33) + string.byte(conteudo, i)) % 2^32
+    end
+    return hash
+end
+
+function verificarHotReload()
+    local agora = os.clock()
+    if agora - hotReloadUltimaVerificacao < hotReloadIntervalo then return end
+    hotReloadUltimaVerificacao = agora
+
+    local caminhoScript = thisScript().path
+    if not caminhoScript then return end
+
+    local hashAtual = calcularHashArquivo(caminhoScript)
+    if not hashAtual then return end
+
+    if hotReloadHashAnterior == nil then
+        -- Primeira verificacao: armazena o hash inicial
+        hotReloadHashAnterior = hashAtual
+        return
+    end
+
+    if hashAtual ~= hotReloadHashAnterior then
+        sampAddChatMessage(u8("{FFFF00}[Painel Admin] {FFFFFF}Mudanca detectada no script! Recarregando..."), -1)
+        addOneOffSound(0, 0, 0, 1057)
+        -- Pequeno delay para o jogador ver a mensagem
+        wait(500)
+        thisScript():reload()
+    end
+end
 
 -- ==========================================
 -- FUNCOES UTILITARIAS
@@ -226,9 +281,31 @@ end
 function main()
     if not isSampLoaded() or not isSampAvailable() then repeat wait(100) until isSampAvailable() end
     sampRegisterChatCommand("admin", function() janela.v = not janela.v end)
+    sampRegisterChatCommand("adminreload", function()
+        sampAddChatMessage(u8("{FFFF00}[Painel Admin] {FFFFFF}Forcando recarga do script..."), -1)
+        wait(300)
+        thisScript():reload()
+    end)
+    sampRegisterChatCommand("adminhotreload", function()
+        hotReloadAtivo = not hotReloadAtivo
+        if hotReloadAtivo then
+            sampAddChatMessage(u8("{00FF00}[Painel Admin] {FFFFFF}Hot-Reload ATIVADO. O painel recarrega automaticamente ao salvar o arquivo."), -1)
+        else
+            sampAddChatMessage(u8("{FF0000}[Painel Admin] {FFFFFF}Hot-Reload DESATIVADO."), -1)
+        end
+    end)
+
+    sampAddChatMessage(u8("{00FF00}[Painel Admin] {FFFFFF}Carregado com sucesso! Hot-Reload ativo."), -1)
+    sampAddChatMessage(u8("{00FF00}[Painel Admin] {FFFFFF}Comandos: /admin (abrir) | /adminreload (forcar) | /adminhotreload (on/off)"), -1)
 
     while true do
         wait(0)
+
+        -- Hot-Reload: verifica mudancas no arquivo do script
+        if hotReloadAtivo then
+            verificarHotReload()
+        end
+
         if isKeyDown(key.VK_F2) and not sampIsChatInputActive() and not sampIsDialogActive() then
             if not travaF2 then janela.v = not janela.v; travaF2 = true end
         else travaF2 = false end
