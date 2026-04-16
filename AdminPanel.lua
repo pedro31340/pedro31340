@@ -971,13 +971,13 @@ function desenharPaginaComandos()
     end
 
     tituloSecao("Setagem")
-    botaoVerde("Set. Booster##c1", imgui.ImVec2(bW, bH), function() acaoSom("/setbooster " .. sanitizarEntrada(campoNickIDF.v) .. " 1") end)
+    botaoVerde("Set. Booster##c1", imgui.ImVec2(bW, bH), function() verificarPlayerEExecutar("/setbooster " .. sanitizarEntrada(campoNickIDF.v) .. " 1") end)
     imgui.SameLine(0, 8)
-    botaoAcento("Ret. Booster##c2", imgui.ImVec2(bW, bH), function() acaoSom("/setbooster " .. sanitizarEntrada(campoNickIDF.v) .. " 0") end)
+    botaoAcento("Ret. Booster##c2", imgui.ImVec2(bW, bH), function() verificarPlayerEExecutar("/setbooster " .. sanitizarEntrada(campoNickIDF.v) .. " 0") end)
     imgui.SameLine(0, 8)
-    botaoVerde("Set. YT##c3", imgui.ImVec2(bW, bH), function() acaoSom("/setyt " .. sanitizarEntrada(campoNickIDF.v) .. " 1") end)
+    botaoVerde("Set. YT##c3", imgui.ImVec2(bW, bH), function() verificarPlayerEExecutar("/setyt " .. sanitizarEntrada(campoNickIDF.v) .. " 1") end)
     imgui.Spacing()
-    botaoAcento("Ret. YT##c4", imgui.ImVec2(bW, bH), function() acaoSom("/setyt " .. sanitizarEntrada(campoNickIDF.v) .. " 0") end)
+    botaoAcento("Ret. YT##c4", imgui.ImVec2(bW, bH), function() verificarPlayerEExecutar("/setyt " .. sanitizarEntrada(campoNickIDF.v) .. " 0") end)
     imgui.Spacing()
     imgui.Spacing()
 
