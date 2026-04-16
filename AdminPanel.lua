@@ -537,7 +537,7 @@ function imgui.OnDrawFrame()
                 if sampIsPlayerConnected(i) then
                     local nick = sampGetPlayerNickname(i)
                     local searchTerm = pesquisa.v:lower()
-                    if searchTerm == "" or nick:lower():find(searchTerm, 1, true) or tostring(i):find(searchTerm) then
+                    if searchTerm == "" or nick:lower():find(searchTerm, 1, true) or tostring(i):find(searchTerm, 1, true) then
                         local isSelected = selectedPlayer == i
                         if isSelected then
                             imgui.PushStyleColor(imgui.Col.Text, cT)
