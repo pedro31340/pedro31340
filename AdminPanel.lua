@@ -878,7 +878,12 @@ function desenharPaginaPunicoes()
     end
     imgui.SameLine(0, 8)
     if imgui.Button("Ag. Cad##p6", imgui.ImVec2(pW, pH)) then
-        acaoSom("/agendarcadeia " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(tempo.v) .. " " .. sanitizarEntrada(avisos.v) .. " " .. sanitizarEntrada(motivo.v))
+        local a = sanitizarEntrada(avisos.v)
+        if a == "" then
+            sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Campo obrigatorio: Avisos Cadeia"), -1)
+        else
+            acaoSom("/agendarcadeia " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(tempo.v) .. " " .. a .. " " .. sanitizarEntrada(motivo.v))
+        end
     end
     imgui.Spacing()
     if imgui.Button("ADV##p7", imgui.ImVec2(pW, pH)) then
@@ -1044,12 +1049,16 @@ function desenharPaginaLogChat()
             imgui.TextColored(CORES.textoEscuro, "  Nenhum evento registrado ainda. Os logs aparecem automaticamente.")
         else
             local contExibido = 0
+            local needSep = false
             for i, log in ipairs(logChat) do
                 -- Filtrar por tipo
                 if filtroAtual == "" or log.tipo == filtroAtual then
                     -- Filtrar por busca
                     if termoBusca == "" or log.texto:lower():find(termoBusca, 1, true) then
                         contExibido = contExibido + 1
+                        if needSep then
+                            imgui.Separator()
+                        end
                         imgui.Spacing()
 
                         -- Badge do tipo
@@ -1069,9 +1078,8 @@ function desenharPaginaLogChat()
                             imgui.TextColored(CORES.textoEscuro, log.hora)
                         end
 
-                        if contExibido < #logChat then
-                            imgui.Separator()
-                        end
+                        -- Separador entre itens (nao apos o ultimo)
+                        needSep = true
                     end
                 end
             end
@@ -1353,10 +1361,12 @@ function imgui.OnDrawFrame()
                 imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.70, 0.18, 0.18, 1.00))
                 imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.85, 0.10, 0.10, 1.00))
                 if imgui.Button("CONFIRMAR##modalSim", imgui.ImVec2(btnW, 32)) then
-                    acaoSom(acaoComando)
-                    mostrarConfirmacao = false
-                    acaoPendente = nil
-                    acaoComando = nil
+                    local sucesso = acaoSom(acaoComando)
+                    if sucesso then
+                        mostrarConfirmacao = false
+                        acaoPendente = nil
+                        acaoComando = nil
+                    end
                 end
                 imgui.PopStyleColor(3)
                 imgui.SameLine(0, 12)
@@ -1365,8 +1375,8 @@ function imgui.OnDrawFrame()
                     acaoPendente = nil
                     acaoComando = nil
                 end
-                imgui.End()
             end
+            imgui.End()
         end
 
         imgui.End()
