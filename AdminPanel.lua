@@ -1,6 +1,7 @@
 local imgui = require 'imgui'
 local key = require 'vkeys'
 local inicfg = require 'inicfg'
+local sampev = require 'lib.samp.events'
 
 -- ==========================================
 -- HOT-RELOAD: Auto-atualizacao do script
@@ -73,9 +74,16 @@ local startTime = os.time()
 local paginaAtual = 1
 local selectedPlayer = -1
 
--- Log de acoes
+-- Log de acoes do painel
 local logAcoes = {}
 local MAX_LOG = 50
+
+-- Log de chat/eventos do servidor (sistema completo)
+local logChat = {}
+local MAX_LOG_CHAT = 200
+local logChatFiltro = imgui.ImInt(0) -- 0=Todos, 1=Chat, 2=Servidor, 3=Comandos, 4=Mortes, 5=Conexoes
+local logChatPesquisa = imgui.ImBuffer(64)
+local logChatAutoScroll = imgui.ImBool(true)
 
 -- Confirmacao de acoes perigosas
 local confirmarAcao = imgui.ImBool(config.settings.confirmarPunicao)
@@ -206,6 +214,37 @@ function adicionarLog(acao)
     if #logAcoes > MAX_LOG then
         table.remove(logAcoes)
     end
+end
+
+-- Adiciona entrada ao log de chat/eventos
+-- tipo: "chat", "servidor", "comando", "morte", "conexao"
+function adicionarLogChat(tipo, texto)
+    table.insert(logChat, 1, {
+        hora = os.date("%H:%M:%S"),
+        tipo = tipo,
+        texto = texto
+    })
+    if #logChat > MAX_LOG_CHAT then
+        table.remove(logChat)
+    end
+end
+
+function corDoTipoLog(tipo)
+    if tipo == "chat" then return CORES.azul end
+    if tipo == "servidor" then return CORES.laranja end
+    if tipo == "comando" then return CORES.roxo end
+    if tipo == "morte" then return CORES.vermelho end
+    if tipo == "conexao" then return CORES.verde end
+    return CORES.textoEscuro
+end
+
+function nomeDoTipoLog(tipo)
+    if tipo == "chat" then return "CHAT" end
+    if tipo == "servidor" then return "SERVIDOR" end
+    if tipo == "comando" then return "CMD" end
+    if tipo == "morte" then return "MORTE" end
+    if tipo == "conexao" then return "CONEXAO" end
+    return "???"
 end
 
 -- ==========================================
@@ -928,6 +967,179 @@ function desenharPaginaComandos()
 end
 
 -- ==========================================
+-- PAGINA: LOGS CHAT (Monitoramento completo)
+-- ==========================================
+function desenharPaginaLogChat()
+    local availW = imgui.GetContentRegionAvailWidth()
+
+    imgui.SetWindowFontScale(1.4)
+    imgui.TextColored(CORES.textoBranco, "Logs do Chat")
+    imgui.SetWindowFontScale(1.0)
+    imgui.Spacing()
+    imgui.TextColored(CORES.textoEscuro, "Monitoramento de tudo que acontece no servidor.")
+    imgui.Spacing()
+
+    -- Barra de filtros
+    imgui.TextColored(CORES.textoClaro, "Filtro:")
+    imgui.SameLine()
+    imgui.PushItemWidth(160)
+    imgui.Combo("##filtroLog", logChatFiltro, "Todos\0Chat\0Servidor\0Comandos\0Mortes\0Conexoes\0")
+    imgui.PopItemWidth()
+    imgui.SameLine(0, 16)
+    imgui.TextColored(CORES.textoClaro, "Buscar:")
+    imgui.SameLine()
+    imgui.PushItemWidth(200)
+    imgui.InputText("##buscaLog", logChatPesquisa)
+    imgui.PopItemWidth()
+    imgui.SameLine(0, 16)
+    imgui.Checkbox("Auto-scroll", logChatAutoScroll)
+    imgui.Spacing()
+
+    -- Contadores por tipo
+    local contChat, contServ, contCmd, contMorte, contConex = 0, 0, 0, 0, 0
+    for _, log in ipairs(logChat) do
+        if log.tipo == "chat" then contChat = contChat + 1
+        elseif log.tipo == "servidor" then contServ = contServ + 1
+        elseif log.tipo == "comando" then contCmd = contCmd + 1
+        elseif log.tipo == "morte" then contMorte = contMorte + 1
+        elseif log.tipo == "conexao" then contConex = contConex + 1
+        end
+    end
+
+    local cardW = (availW - 32) / 5
+    desenharCardEstatistica("Chat", contChat, CORES.azul, cardW)
+    imgui.SameLine(0, 8)
+    desenharCardEstatistica("Servidor", contServ, CORES.laranja, cardW)
+    imgui.SameLine(0, 8)
+    desenharCardEstatistica("Comandos", contCmd, CORES.roxo, cardW)
+    imgui.SameLine(0, 8)
+    desenharCardEstatistica("Mortes", contMorte, CORES.vermelho, cardW)
+    imgui.SameLine(0, 8)
+    desenharCardEstatistica("Conexoes", contConex, CORES.verde, cardW)
+    imgui.Spacing()
+
+    -- Botoes de acao
+    botaoAcento("Limpar Logs##clearLogs", imgui.ImVec2(140, 28), function()
+        logChat = {}
+    end)
+    imgui.SameLine(0, 8)
+    imgui.TextColored(CORES.textoEscuro, string.format("Total: %d / %d", #logChat, MAX_LOG_CHAT))
+    imgui.Spacing()
+
+    -- Lista de logs
+    local filtroNomes = {"", "chat", "servidor", "comando", "morte", "conexao"}
+    local filtroAtual = filtroNomes[logChatFiltro.v + 1] or ""
+    local termoBusca = logChatPesquisa.v:lower()
+
+    imgui.PushStyleColor(imgui.Col.ChildWindowBg, CORES.cardFundo)
+    imgui.BeginChild("LogChatPanel", imgui.ImVec2(0, -1), true)
+        if #logChat == 0 then
+            imgui.Spacing()
+            imgui.TextColored(CORES.textoEscuro, "  Nenhum evento registrado ainda. Os logs aparecem automaticamente.")
+        else
+            local contExibido = 0
+            for i, log in ipairs(logChat) do
+                -- Filtrar por tipo
+                if filtroAtual == "" or log.tipo == filtroAtual then
+                    -- Filtrar por busca
+                    if termoBusca == "" or log.texto:lower():find(termoBusca, 1, true) then
+                        contExibido = contExibido + 1
+                        imgui.Spacing()
+
+                        -- Badge do tipo
+                        local cor = corDoTipoLog(log.tipo)
+                        local nome = nomeDoTipoLog(log.tipo)
+                        imgui.TextColored(cor, string.format("[%s]", nome))
+                        imgui.SameLine(0, 8)
+
+                        -- Texto do log
+                        imgui.TextColored(CORES.textoClaro, log.texto)
+
+                        -- Hora alinhada a direita
+                        local horaW = imgui.CalcTextSize(log.hora).x
+                        local dispW = imgui.GetContentRegionAvailWidth()
+                        if dispW > horaW + 10 then
+                            imgui.SameLine(imgui.GetWindowWidth() - horaW - 16)
+                            imgui.TextColored(CORES.textoEscuro, log.hora)
+                        end
+
+                        if contExibido < #logChat then
+                            imgui.Separator()
+                        end
+                    end
+                end
+            end
+            if contExibido == 0 then
+                imgui.Spacing()
+                imgui.TextColored(CORES.textoEscuro, "  Nenhum resultado para o filtro selecionado.")
+            end
+        end
+        if logChatAutoScroll.v and #logChat > 0 then
+            imgui.SetScrollHere()
+        end
+    imgui.EndChild()
+    imgui.PopStyleColor()
+end
+
+-- ==========================================
+-- SAMP EVENTS: Captura de chat e eventos
+-- ==========================================
+function sampev.onServerMessage(color, text)
+    if text and text ~= "" then
+        adicionarLogChat("servidor", text)
+    end
+end
+
+function sampev.onChatMessage(playerId, text)
+    if text and text ~= "" then
+        local nick = sampGetPlayerNickname(playerId) or ("ID:" .. playerId)
+        adicionarLogChat("chat", nick .. ": " .. text)
+    end
+end
+
+function sampev.onSendChat(message)
+    if message and message ~= "" then
+        local myNick = sampGetPlayerNickname(select(2, sampGetPlayerIdByCharHandle(playerPed)) or 0) or "Eu"
+        adicionarLogChat("chat", myNick .. ": " .. message)
+    end
+end
+
+function sampev.onSendCommand(command)
+    if command and command ~= "" then
+        adicionarLogChat("comando", command)
+    end
+end
+
+function sampev.onPlayerDeathNotification(killerId, killedId, reason)
+    local killerNick = "???"
+    local killedNick = "???"
+    if killerId ~= 65535 and sampIsPlayerConnected(killerId) then
+        killerNick = sampGetPlayerNickname(killerId) or ("ID:" .. killerId)
+    end
+    if sampIsPlayerConnected(killedId) then
+        killedNick = sampGetPlayerNickname(killedId) or ("ID:" .. killedId)
+    end
+    if killerId == 65535 then
+        adicionarLogChat("morte", killedNick .. " morreu")
+    else
+        adicionarLogChat("morte", killerNick .. " matou " .. killedNick .. " (arma: " .. tostring(reason) .. ")")
+    end
+end
+
+function sampev.onPlayerJoin(playerId, color, isNpc, nickname)
+    if nickname and nickname ~= "" then
+        adicionarLogChat("conexao", "[+] " .. nickname .. " (ID:" .. playerId .. ") conectou")
+    end
+end
+
+function sampev.onPlayerQuit(playerId, reason)
+    local nick = sampGetPlayerNickname(playerId) or ("ID:" .. playerId)
+    local motivos = {[0] = "Timeout", [1] = "Saiu", [2] = "Kickado/Banido"}
+    local motivoTexto = motivos[reason] or "Desconhecido"
+    adicionarLogChat("conexao", "[-] " .. nick .. " (ID:" .. playerId .. ") desconectou (" .. motivoTexto .. ")")
+end
+
+-- ==========================================
 -- PAGINA: APARENCIA (Configuracoes)
 -- ==========================================
 function desenharPaginaAparencia()
@@ -1037,7 +1249,9 @@ function imgui.OnDrawFrame()
                 imgui.Spacing()
                 botaoSidebar(">>", "Comandos", 5)
                 imgui.Spacing()
-                botaoSidebar(">>", u8("Aparencia"), 6)
+                botaoSidebar(">>", "Logs Chat", 6)
+                imgui.Spacing()
+                botaoSidebar(">>", u8("Aparencia"), 7)
             imgui.EndGroup()
 
             imgui.Spacing()
@@ -1089,6 +1303,8 @@ function imgui.OnDrawFrame()
             elseif paginaAtual == 5 then
                 desenharPaginaComandos()
             elseif paginaAtual == 6 then
+                desenharPaginaLogChat()
+            elseif paginaAtual == 7 then
                 desenharPaginaAparencia()
             end
 
