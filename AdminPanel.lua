@@ -52,6 +52,7 @@ local CORES = {
     verde = imgui.ImVec4(0.20, 0.75, 0.55, 1.00),
     vermelho = imgui.ImVec4(0.85, 0.25, 0.25, 1.00),
     laranja = imgui.ImVec4(0.85, 0.55, 0.20, 1.00),
+    amarelo = imgui.ImVec4(0.95, 0.80, 0.20, 1.00),
     -- Inputs
     inputFundo = imgui.ImVec4(0.10, 0.10, 0.12, 1.00),
     -- Botao verde
@@ -81,7 +82,7 @@ local MAX_LOG = 50
 -- Log de chat/eventos do servidor (sistema completo)
 local logChat = {}
 local MAX_LOG_CHAT = 200
-local logChatFiltro = imgui.ImInt(0) -- 0=Todos, 1=Chat, 2=Servidor, 3=Comandos, 4=Mortes, 5=Conexoes
+local logChatFiltro = imgui.ImInt(0) -- 0=Todos, 1=Chat, 2=Servidor, 3=Comandos, 4=Mortes, 5=Conexoes, 6=Admin
 local logChatPesquisa = imgui.ImBuffer(64)
 local logChatAutoScroll = imgui.ImBool(true)
 
@@ -217,7 +218,7 @@ function adicionarLog(acao)
 end
 
 -- Adiciona entrada ao log de chat/eventos
--- tipo: "chat", "servidor", "comando", "morte", "conexao"
+-- tipo: "chat", "servidor", "comando", "morte", "conexao", "admin"
 function adicionarLogChat(tipo, texto)
     table.insert(logChat, 1, {
         hora = os.date("%H:%M:%S"),
@@ -235,6 +236,7 @@ function corDoTipoLog(tipo)
     if tipo == "comando" then return CORES.roxo end
     if tipo == "morte" then return CORES.vermelho end
     if tipo == "conexao" then return CORES.verde end
+    if tipo == "admin" then return CORES.amarelo end
     return CORES.textoEscuro
 end
 
@@ -244,6 +246,7 @@ function nomeDoTipoLog(tipo)
     if tipo == "comando" then return "CMD" end
     if tipo == "morte" then return "MORTE" end
     if tipo == "conexao" then return "CONEXAO" end
+    if tipo == "admin" then return "ADMIN" end
     return "???"
 end
 
@@ -983,7 +986,7 @@ function desenharPaginaLogChat()
     imgui.TextColored(CORES.textoClaro, "Filtro:")
     imgui.SameLine()
     imgui.PushItemWidth(160)
-    imgui.Combo("##filtroLog", logChatFiltro, "Todos\0Chat\0Servidor\0Comandos\0Mortes\0Conexoes\0")
+    imgui.Combo("##filtroLog", logChatFiltro, "Todos\0Chat\0Servidor\0Comandos\0Mortes\0Conexoes\0Admin\0")
     imgui.PopItemWidth()
     imgui.SameLine(0, 16)
     imgui.TextColored(CORES.textoClaro, "Buscar:")
@@ -996,17 +999,18 @@ function desenharPaginaLogChat()
     imgui.Spacing()
 
     -- Contadores por tipo
-    local contChat, contServ, contCmd, contMorte, contConex = 0, 0, 0, 0, 0
+    local contChat, contServ, contCmd, contMorte, contConex, contAdmin = 0, 0, 0, 0, 0, 0
     for _, log in ipairs(logChat) do
         if log.tipo == "chat" then contChat = contChat + 1
         elseif log.tipo == "servidor" then contServ = contServ + 1
         elseif log.tipo == "comando" then contCmd = contCmd + 1
         elseif log.tipo == "morte" then contMorte = contMorte + 1
         elseif log.tipo == "conexao" then contConex = contConex + 1
+        elseif log.tipo == "admin" then contAdmin = contAdmin + 1
         end
     end
 
-    local cardW = (availW - 32) / 5
+    local cardW = (availW - 40) / 6
     desenharCardEstatistica("Chat", contChat, CORES.azul, cardW)
     imgui.SameLine(0, 8)
     desenharCardEstatistica("Servidor", contServ, CORES.laranja, cardW)
@@ -1016,6 +1020,8 @@ function desenharPaginaLogChat()
     desenharCardEstatistica("Mortes", contMorte, CORES.vermelho, cardW)
     imgui.SameLine(0, 8)
     desenharCardEstatistica("Conexoes", contConex, CORES.verde, cardW)
+    imgui.SameLine(0, 8)
+    desenharCardEstatistica("Admin", contAdmin, CORES.amarelo, cardW)
     imgui.Spacing()
 
     -- Botoes de acao
@@ -1027,7 +1033,7 @@ function desenharPaginaLogChat()
     imgui.Spacing()
 
     -- Lista de logs
-    local filtroNomes = {"", "chat", "servidor", "comando", "morte", "conexao"}
+    local filtroNomes = {"", "chat", "servidor", "comando", "morte", "conexao", "admin"}
     local filtroAtual = filtroNomes[logChatFiltro.v + 1] or ""
     local termoBusca = logChatPesquisa.v:lower()
 
@@ -1086,7 +1092,12 @@ end
 -- ==========================================
 function sampev.onServerMessage(color, text)
     if text and text ~= "" then
-        adicionarLogChat("servidor", text)
+        -- Detectar mensagens de admin (AdminAviso, avisos do sistema admin)
+        if text:find("^AdminAviso") or text:find("^%[AdminAviso%]") or text:find("^Admin:") or text:find("^%[Admin%]") then
+            adicionarLogChat("admin", text)
+        else
+            adicionarLogChat("servidor", text)
+        end
     end
 end
 
