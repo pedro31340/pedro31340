@@ -14,31 +14,64 @@ local inicfg = require 'inicfg'
 local configFile = "AdminPanelConfig.ini"
 local defConfig = {
     settings = {
-        corR = 0.07, corG = 0.08, corB = 0.07, corA = 1.00,
-        btnR = 0.23, btnG = 0.65, btnB = 0.85, btnA = 1.00,
-        textR = 1.00, textG = 1.00, textB = 1.00, textA = 1.00,
-        titR = 0.23, titG = 0.65, titB = 0.85, titA = 1.00,
-        posX = 400, posY = 300,
-        tamanhoX = 860, tamanhoY = 700,
+        posX = 200, posY = 100,
+        tamanhoX = 1000, tamanhoY = 650,
         somID = 1057,
         confirmarPunicao = true,
-        logAcoes = true,
         cooldownCmd = 2
     }
 }
 local config = inicfg.load(defConfig, configFile) or defConfig
 
 -- ==========================================
+-- CORES DO TEMA (estilo dashboard escuro)
+-- ==========================================
+local CORES = {
+    -- Fundo principal
+    fundoPrincipal = imgui.ImVec4(0.11, 0.11, 0.11, 0.97),
+    -- Sidebar
+    sidebar = imgui.ImVec4(0.13, 0.13, 0.15, 1.00),
+    sidebarItem = imgui.ImVec4(0.13, 0.13, 0.15, 0.00),
+    sidebarItemHover = imgui.ImVec4(0.20, 0.20, 0.22, 1.00),
+    sidebarAtivo = imgui.ImVec4(0.85, 0.30, 0.22, 1.00),
+    -- Acento (vermelho/laranja)
+    acento = imgui.ImVec4(0.85, 0.30, 0.22, 1.00),
+    acentoHover = imgui.ImVec4(0.95, 0.40, 0.30, 1.00),
+    acentoEscuro = imgui.ImVec4(0.65, 0.20, 0.15, 1.00),
+    -- Cards
+    cardFundo = imgui.ImVec4(0.16, 0.16, 0.18, 1.00),
+    -- Texto
+    textoBranco = imgui.ImVec4(1.00, 1.00, 1.00, 1.00),
+    textoClaro = imgui.ImVec4(0.80, 0.80, 0.80, 1.00),
+    textoEscuro = imgui.ImVec4(0.50, 0.50, 0.50, 1.00),
+    textoVermelho = imgui.ImVec4(0.85, 0.30, 0.22, 1.00),
+    -- Cores para cards de estatistica
+    azul = imgui.ImVec4(0.20, 0.45, 0.85, 1.00),
+    roxo = imgui.ImVec4(0.55, 0.25, 0.75, 1.00),
+    verde = imgui.ImVec4(0.20, 0.75, 0.55, 1.00),
+    vermelho = imgui.ImVec4(0.85, 0.25, 0.25, 1.00),
+    laranja = imgui.ImVec4(0.85, 0.55, 0.20, 1.00),
+    -- Inputs
+    inputFundo = imgui.ImVec4(0.10, 0.10, 0.12, 1.00),
+    -- Botao verde
+    btnVerde = imgui.ImVec4(0.15, 0.55, 0.30, 1.00),
+    btnVerdeHover = imgui.ImVec4(0.20, 0.65, 0.38, 1.00),
+    -- Botao cinza
+    btnCinza = imgui.ImVec4(0.25, 0.25, 0.28, 1.00),
+    btnCinzaHover = imgui.ImVec4(0.35, 0.35, 0.38, 1.00),
+    -- Indicador online
+    pontoVerde = imgui.ImVec4(0.30, 0.85, 0.45, 1.00),
+}
+
+-- ==========================================
 -- VARIAVEIS DE CONTROLE
 -- ==========================================
 local janela = imgui.ImBool(false)
 local estadoAnterior = false
-local exibirAjustes = imgui.ImBool(false)
-local selectedPlayer = -1
 local travaF2 = false
-local cliques, timerClique = 0, 0
 local startTime = os.time()
-local abaAtual = 1
+local paginaAtual = 1
+local selectedPlayer = -1
 
 -- Log de acoes
 local logAcoes = {}
@@ -55,19 +88,14 @@ local ultimoComando = 0
 local cooldownSegundos = config.settings.cooldownCmd
 
 -- Hot-Reload: variaveis de controle (sempre ativo, automatico)
-local hotReloadIntervalo = 3 -- verifica a cada 3 segundos
+local hotReloadIntervalo = 3
 local hotReloadUltimaVerificacao = 0
 local hotReloadHashAnterior = nil
 
 -- ==========================================
 -- BUFFERS
 -- ==========================================
-local corPainel = imgui.ImFloat4(config.settings.corR, config.settings.corG, config.settings.corB, config.settings.corA)
-local corBotoes = imgui.ImFloat4(config.settings.btnR, config.settings.btnG, config.settings.btnB, config.settings.btnA)
-local corTexto = imgui.ImFloat4(config.settings.textR, config.settings.textG, config.settings.textB, config.settings.textA)
-local corTitulos = imgui.ImFloat4(config.settings.titR, config.settings.titG, config.settings.titB, config.settings.titA)
 local somSelecionado = imgui.ImInt(config.settings.somID)
-
 local tempo = imgui.ImBuffer(16)
 local motivo = imgui.ImBuffer(128)
 local avisos = imgui.ImBuffer(16)
@@ -85,7 +113,6 @@ function calcularHashArquivo(caminho)
     local conteudo = arquivo:read("*a")
     arquivo:close()
     if not conteudo then return nil end
-    -- Hash simples mas eficaz (DJB2)
     local hash = 5381
     for i = 1, #conteudo do
         hash = ((hash * 33) + string.byte(conteudo, i)) % 2^32
@@ -97,23 +124,17 @@ function verificarHotReload()
     local agora = os.clock()
     if agora - hotReloadUltimaVerificacao < hotReloadIntervalo then return end
     hotReloadUltimaVerificacao = agora
-
     local caminhoScript = thisScript().path
     if not caminhoScript then return end
-
     local hashAtual = calcularHashArquivo(caminhoScript)
     if not hashAtual then return end
-
     if hotReloadHashAnterior == nil then
-        -- Primeira verificacao: armazena o hash inicial
         hotReloadHashAnterior = hashAtual
         return
     end
-
     if hashAtual ~= hotReloadHashAnterior then
-        sampAddChatMessage(u8("{FFFF00}[Painel Admin] {FFFFFF}Mudanca detectada no script! Recarregando..."), -1)
+        sampAddChatMessage(u8("{FFFF00}[Painel Admin] {FFFFFF}Mudanca detectada! Recarregando..."), -1)
         addOneOffSound(0, 0, 0, 1057)
-        -- Pequeno delay para o jogador ver a mensagem
         wait(500)
         thisScript():reload()
     end
@@ -151,7 +172,6 @@ end
 
 function sanitizarEntrada(str)
     if str == nil then return "" end
-    -- Remove caracteres que poderiam ser usados para injecao de comandos
     str = str:gsub("[;|&`$%%]", "")
     return str
 end
@@ -201,7 +221,6 @@ function acaoSom(comando)
     return true
 end
 
--- Executa com confirmacao para acoes perigosas
 function acaoPerigosa(descricao, comando)
     if confirmarAcao.v then
         acaoPendente = descricao
@@ -223,40 +242,6 @@ function contarPlayersOnline()
     return count
 end
 
-function tituloSecao(texto)
-    local cT = imgui.ImVec4(corTitulos.v[1], corTitulos.v[2], corTitulos.v[3], 1.0)
-    imgui.Spacing()
-    imgui.TextColored(cT, texto)
-    -- Linha decorativa colorida abaixo do titulo
-    local drawList = imgui.GetWindowDrawList()
-    local cursorPos = imgui.GetCursorScreenPos()
-    local availW = imgui.GetContentRegionAvailWidth()
-    drawList:AddLine(
-        imgui.ImVec2(cursorPos.x, cursorPos.y),
-        imgui.ImVec2(cursorPos.x + availW, cursorPos.y),
-        imgui.GetColorU32(imgui.ImVec4(corBotoes.v[1], corBotoes.v[2], corBotoes.v[3], 0.6)),
-        2.0
-    )
-    imgui.Spacing()
-    imgui.Spacing()
-end
-
-function botaoComTooltip(label, tamanho, tooltip, callback)
-    if imgui.Button(label, tamanho) then
-        callback()
-    end
-    if tooltip and imgui.IsItemHovered() then
-        imgui.PushStyleVar(imgui.StyleVar.WindowRounding, 6.0)
-        imgui.PushStyleColor(imgui.Col.PopupBg, imgui.ImVec4(0.12, 0.12, 0.12, 0.95))
-        imgui.BeginTooltip()
-        imgui.TextColored(imgui.ImVec4(0.8, 0.8, 0.8, 1.0), tooltip)
-        imgui.EndTooltip()
-        imgui.PopStyleColor()
-        imgui.PopStyleVar()
-    end
-end
-
--- Verifica se o campo de ID/Nick esta preenchido antes de executar
 function verificarPlayerEExecutar(comando, campos)
     local id = sanitizarEntrada(campoNickIDF.v)
     if id == "" then
@@ -274,6 +259,110 @@ function verificarPlayerEExecutar(comando, campos)
     acaoSom(comando)
 end
 
+-- Desenha um card de estatistica com borda colorida no topo
+function desenharCardEstatistica(label, valor, corBorda, largura)
+    local drawList = imgui.GetWindowDrawList()
+    local pos = imgui.GetCursorScreenPos()
+
+    imgui.PushStyleColor(imgui.Col.ChildWindowBg, CORES.cardFundo)
+    imgui.BeginChild("card_" .. label, imgui.ImVec2(largura, 65), true)
+        drawList:AddRectFilled(
+            imgui.ImVec2(pos.x, pos.y),
+            imgui.ImVec2(pos.x + largura, pos.y + 3),
+            imgui.GetColorU32(corBorda)
+        )
+        imgui.Spacing()
+        imgui.Spacing()
+        local iconPos = imgui.GetCursorScreenPos()
+        drawList:AddRectFilled(
+            imgui.ImVec2(iconPos.x + 4, iconPos.y),
+            imgui.ImVec2(iconPos.x + 28, iconPos.y + 24),
+            imgui.GetColorU32(corBorda),
+            4.0
+        )
+        imgui.Dummy(imgui.ImVec2(34, 0))
+        imgui.SameLine()
+        imgui.BeginGroup()
+            imgui.TextColored(CORES.textoEscuro, label)
+            imgui.SetWindowFontScale(1.3)
+            imgui.TextColored(CORES.textoBranco, tostring(valor))
+            imgui.SetWindowFontScale(1.0)
+        imgui.EndGroup()
+        imgui.SameLine()
+        local dotX = pos.x + largura - 18
+        local dotY = pos.y + 32
+        drawList:AddCircleFilled(imgui.ImVec2(dotX, dotY), 4, imgui.GetColorU32(CORES.pontoVerde))
+    imgui.EndChild()
+    imgui.PopStyleColor()
+end
+
+-- Botao do sidebar
+function botaoSidebar(icone, texto, indice)
+    local ativo = (paginaAtual == indice)
+    local altura = 32
+
+    if ativo then
+        imgui.PushStyleColor(imgui.Col.Button, CORES.sidebarAtivo)
+        imgui.PushStyleColor(imgui.Col.ButtonHovered, CORES.sidebarAtivo)
+        imgui.PushStyleColor(imgui.Col.ButtonActive, CORES.sidebarAtivo)
+    else
+        imgui.PushStyleColor(imgui.Col.Button, CORES.sidebarItem)
+        imgui.PushStyleColor(imgui.Col.ButtonHovered, CORES.sidebarItemHover)
+        imgui.PushStyleColor(imgui.Col.ButtonActive, CORES.sidebarItemHover)
+    end
+
+    imgui.PushStyleVar(imgui.StyleVar.ButtonTextAlign, imgui.ImVec2(0.0, 0.5))
+    local clicou = imgui.Button(icone .. "  " .. texto .. "##sidebar" .. indice, imgui.ImVec2(-1, altura))
+    imgui.PopStyleVar()
+    imgui.PopStyleColor(3)
+
+    if clicou then
+        paginaAtual = indice
+    end
+end
+
+-- Botao estilizado (acento vermelho)
+function botaoAcento(label, tamanho, callback)
+    imgui.PushStyleColor(imgui.Col.Button, CORES.acento)
+    imgui.PushStyleColor(imgui.Col.ButtonHovered, CORES.acentoHover)
+    imgui.PushStyleColor(imgui.Col.ButtonActive, CORES.acentoEscuro)
+    if imgui.Button(label, tamanho) then
+        callback()
+    end
+    imgui.PopStyleColor(3)
+end
+
+-- Botao estilizado (cinza)
+function botaoCinza(label, tamanho, callback)
+    imgui.PushStyleColor(imgui.Col.Button, CORES.btnCinza)
+    imgui.PushStyleColor(imgui.Col.ButtonHovered, CORES.btnCinzaHover)
+    imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.40, 0.40, 0.44, 1.00))
+    if imgui.Button(label, tamanho) then
+        callback()
+    end
+    imgui.PopStyleColor(3)
+end
+
+-- Botao verde
+function botaoVerde(label, tamanho, callback)
+    imgui.PushStyleColor(imgui.Col.Button, CORES.btnVerde)
+    imgui.PushStyleColor(imgui.Col.ButtonHovered, CORES.btnVerdeHover)
+    imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.10, 0.45, 0.25, 1.00))
+    if imgui.Button(label, tamanho) then
+        callback()
+    end
+    imgui.PopStyleColor(3)
+end
+
+-- Secao titulo simples
+function tituloSecao(texto)
+    imgui.Spacing()
+    imgui.SetWindowFontScale(1.1)
+    imgui.TextColored(CORES.textoBranco, texto)
+    imgui.SetWindowFontScale(1.0)
+    imgui.Spacing()
+end
+
 -- ==========================================
 -- FUNCAO PRINCIPAL
 -- ==========================================
@@ -285,8 +374,6 @@ function main()
 
     while true do
         wait(0)
-
-        -- Hot-Reload: verifica mudancas no arquivo do script automaticamente
         verificarHotReload()
 
         if isKeyDown(key.VK_F2) and not sampIsChatInputActive() and not sampIsDialogActive() then
@@ -306,78 +393,593 @@ function main()
 end
 
 -- ==========================================
--- ESTILO VISUAL MODERNO
+-- ESTILO VISUAL - DASHBOARD ESCURO
 -- ==========================================
 function aplicarEstilo()
     local style = imgui.GetStyle()
-    style.WindowRounding = 8.0
-    style.FrameRounding = 4.0
-    style.ChildWindowRounding = 6.0
+    style.WindowRounding = 10.0
+    style.FrameRounding = 6.0
+    style.ChildWindowRounding = 8.0
     style.ScrollbarRounding = 6.0
-    style.GrabRounding = 3.0
-    style.ScrollbarSize = 8.0
+    style.GrabRounding = 4.0
+    style.ScrollbarSize = 6.0
     style.ItemSpacing = imgui.ImVec2(8, 6)
     style.ItemInnerSpacing = imgui.ImVec2(6, 4)
-    style.WindowPadding = imgui.ImVec2(12, 10)
-    style.FramePadding = imgui.ImVec2(6, 4)
+    style.WindowPadding = imgui.ImVec2(0, 0)
+    style.FramePadding = imgui.ImVec2(8, 5)
 
     local col = style.Colors
-    local p, b, t = corPainel.v, corBotoes.v, corTexto.v
 
-    -- Fundo principal com profundidade
-    col[imgui.Col.WindowBg] = imgui.ImVec4(p[1], p[2], p[3], p[4])
-    col[imgui.Col.ChildWindowBg] = imgui.ImVec4(p[1] + 0.03, p[2] + 0.03, p[3] + 0.03, 0.95)
-    col[imgui.Col.PopupBg] = imgui.ImVec4(p[1] + 0.02, p[2] + 0.02, p[3] + 0.02, 0.98)
-
-    -- Texto
-    col[imgui.Col.Text] = imgui.ImVec4(t[1], t[2], t[3], t[4])
-    col[imgui.Col.TextDisabled] = imgui.ImVec4(t[1] * 0.5, t[2] * 0.5, t[3] * 0.5, 0.6)
-
-    -- Titulo da janela
-    col[imgui.Col.TitleBg] = imgui.ImVec4(p[1] - 0.02, p[2] - 0.02, p[3] - 0.02, 1.00)
-    col[imgui.Col.TitleBgActive] = imgui.ImVec4(b[1] * 0.5, b[2] * 0.5, b[3] * 0.5, 1.00)
-    col[imgui.Col.TitleBgCollapsed] = imgui.ImVec4(p[1], p[2], p[3], 0.75)
-
-    -- Botoes com visual moderno
-    col[imgui.Col.Button] = imgui.ImVec4(b[1] * 0.6, b[2] * 0.6, b[3] * 0.6, b[4])
-    col[imgui.Col.ButtonHovered] = imgui.ImVec4(b[1], b[2], b[3], 1.00)
-    col[imgui.Col.ButtonActive] = imgui.ImVec4(math.min(1.0, b[1] * 1.3), math.min(1.0, b[2] * 1.3), math.min(1.0, b[3] * 1.3), 1.00)
-
-    -- Frames (inputs)
-    col[imgui.Col.FrameBg] = imgui.ImVec4(0.10, 0.10, 0.10, 1.00)
-    col[imgui.Col.FrameBgHovered] = imgui.ImVec4(0.16, 0.16, 0.16, 1.00)
-    col[imgui.Col.FrameBgActive] = imgui.ImVec4(b[1] * 0.3, b[2] * 0.3, b[3] * 0.3, 0.80)
-
-    -- Close button
-    col[imgui.Col.CloseButton] = imgui.ImVec4(1.0, 1.0, 1.0, 0.15)
-    col[imgui.Col.CloseButtonHovered] = imgui.ImVec4(1.0, 0.3, 0.3, 0.80)
+    col[imgui.Col.WindowBg] = CORES.fundoPrincipal
+    col[imgui.Col.ChildWindowBg] = imgui.ImVec4(0.12, 0.12, 0.14, 0.00)
+    col[imgui.Col.PopupBg] = imgui.ImVec4(0.14, 0.14, 0.16, 0.98)
+    col[imgui.Col.Text] = CORES.textoBranco
+    col[imgui.Col.TextDisabled] = CORES.textoEscuro
+    col[imgui.Col.TitleBg] = imgui.ImVec4(0.10, 0.10, 0.12, 1.00)
+    col[imgui.Col.TitleBgActive] = imgui.ImVec4(0.10, 0.10, 0.12, 1.00)
+    col[imgui.Col.TitleBgCollapsed] = imgui.ImVec4(0.10, 0.10, 0.12, 0.75)
+    col[imgui.Col.Button] = CORES.btnCinza
+    col[imgui.Col.ButtonHovered] = CORES.btnCinzaHover
+    col[imgui.Col.ButtonActive] = imgui.ImVec4(0.40, 0.40, 0.44, 1.00)
+    col[imgui.Col.FrameBg] = CORES.inputFundo
+    col[imgui.Col.FrameBgHovered] = imgui.ImVec4(0.14, 0.14, 0.16, 1.00)
+    col[imgui.Col.FrameBgActive] = imgui.ImVec4(0.18, 0.18, 0.20, 1.00)
+    col[imgui.Col.CloseButton] = imgui.ImVec4(1.0, 1.0, 1.0, 0.10)
+    col[imgui.Col.CloseButtonHovered] = imgui.ImVec4(0.85, 0.30, 0.22, 0.80)
     col[imgui.Col.CloseButtonActive] = imgui.ImVec4(1.0, 0.0, 0.0, 1.00)
+    col[imgui.Col.TextSelectedBg] = imgui.ImVec4(0.85, 0.30, 0.22, 0.50)
+    col[imgui.Col.Header] = imgui.ImVec4(0.20, 0.20, 0.22, 0.60)
+    col[imgui.Col.HeaderHovered] = imgui.ImVec4(0.25, 0.25, 0.28, 0.80)
+    col[imgui.Col.HeaderActive] = CORES.acento
+    col[imgui.Col.ScrollbarBg] = imgui.ImVec4(0.05, 0.05, 0.06, 0.40)
+    col[imgui.Col.ScrollbarGrab] = imgui.ImVec4(0.30, 0.30, 0.33, 0.60)
+    col[imgui.Col.ScrollbarGrabHovered] = imgui.ImVec4(0.40, 0.40, 0.44, 0.80)
+    col[imgui.Col.ScrollbarGrabActive] = CORES.acento
+    col[imgui.Col.Separator] = imgui.ImVec4(0.25, 0.25, 0.28, 0.50)
+    col[imgui.Col.SeparatorHovered] = CORES.acento
+    col[imgui.Col.SeparatorActive] = CORES.acento
+    col[imgui.Col.CheckMark] = CORES.acento
+    col[imgui.Col.SliderGrab] = imgui.ImVec4(0.50, 0.50, 0.55, 0.80)
+    col[imgui.Col.SliderGrabActive] = CORES.acento
+end
 
-    -- Selecao
-    col[imgui.Col.TextSelectedBg] = imgui.ImVec4(b[1], b[2], b[3], 0.50)
+-- ==========================================
+-- PAGINA: INICIO (Dashboard)
+-- ==========================================
+function desenharPaginaInicio()
+    local availW = imgui.GetContentRegionAvailWidth()
 
-    -- Headers
-    col[imgui.Col.Header] = imgui.ImVec4(b[1] * 0.4, b[2] * 0.4, b[3] * 0.4, 0.60)
-    col[imgui.Col.HeaderHovered] = imgui.ImVec4(b[1] * 0.6, b[2] * 0.6, b[3] * 0.6, 0.80)
-    col[imgui.Col.HeaderActive] = imgui.ImVec4(b[1], b[2], b[3], 1.00)
+    imgui.SetWindowFontScale(1.4)
+    imgui.TextColored(CORES.textoBranco, u8("Pagina (Inicio)"))
+    imgui.SetWindowFontScale(1.0)
+    imgui.Spacing()
 
-    -- Scrollbar estilizada
-    col[imgui.Col.ScrollbarBg] = imgui.ImVec4(0.04, 0.04, 0.04, 0.40)
-    col[imgui.Col.ScrollbarGrab] = imgui.ImVec4(b[1] * 0.4, b[2] * 0.4, b[3] * 0.4, 0.60)
-    col[imgui.Col.ScrollbarGrabHovered] = imgui.ImVec4(b[1] * 0.7, b[2] * 0.7, b[3] * 0.7, 0.80)
-    col[imgui.Col.ScrollbarGrabActive] = imgui.ImVec4(b[1], b[2], b[3], 1.00)
+    imgui.SetWindowFontScale(1.1)
+    imgui.Text("Bem-vindo, ")
+    imgui.SameLine(0, 0)
+    imgui.TextColored(CORES.textoVermelho, sampGetPlayerNickname(select(2, sampGetPlayerIdByCharHandle(playerPed)) or 0) or "Admin")
+    imgui.SetWindowFontScale(1.0)
+    imgui.TextColored(CORES.textoEscuro, u8("Este e o painel administrador. Voce tem acesso as informacoes do servidor."))
+    imgui.Spacing()
+    imgui.Spacing()
 
-    -- Separator colorido
-    col[imgui.Col.Separator] = imgui.ImVec4(b[1] * 0.3, b[2] * 0.3, b[3] * 0.3, 0.50)
-    col[imgui.Col.SeparatorHovered] = imgui.ImVec4(b[1], b[2], b[3], 0.80)
-    col[imgui.Col.SeparatorActive] = imgui.ImVec4(b[1], b[2], b[3], 1.00)
+    -- Cards de estatisticas - Linha 1
+    local cardW = (availW - 24) / 4
+    desenharCardEstatistica("Players", contarPlayersOnline(), CORES.azul, cardW)
+    imgui.SameLine(0, 8)
+    desenharCardEstatistica("Staff", 0, CORES.roxo, cardW)
+    imgui.SameLine(0, 8)
+    desenharCardEstatistica("Presos", 0, CORES.verde, cardW)
+    imgui.SameLine(0, 8)
+    desenharCardEstatistica("Reportados", 0, CORES.vermelho, cardW)
 
-    -- CheckMark
-    col[imgui.Col.CheckMark] = imgui.ImVec4(b[1], b[2], b[3], 1.00)
+    imgui.Spacing()
 
-    -- SliderGrab
-    col[imgui.Col.SliderGrab] = imgui.ImVec4(b[1] * 0.7, b[2] * 0.7, b[3] * 0.7, 0.80)
-    col[imgui.Col.SliderGrabActive] = imgui.ImVec4(b[1], b[2], b[3], 1.00)
+    -- Cards de estatisticas - Linha 2
+    local uptime = os.time() - startTime
+    local upH = math.floor(uptime / 3600)
+    local upM = math.floor((uptime % 3600) / 60)
+    desenharCardEstatistica("Sessao", string.format("%02d:%02d", upH, upM), CORES.laranja, cardW)
+    imgui.SameLine(0, 8)
+    desenharCardEstatistica("Hora", os.date("%H:%M"), CORES.roxo, cardW)
+
+    imgui.Spacing()
+    imgui.Spacing()
+
+    -- Duas colunas: Logs e Info
+    imgui.Columns(2, "logInfo", false)
+    imgui.SetColumnWidth(0, availW * 0.65)
+
+    tituloSecao("Logs Painel")
+    imgui.PushStyleColor(imgui.Col.ChildWindowBg, CORES.cardFundo)
+    imgui.BeginChild("LogsPanel", imgui.ImVec2(-8, 200), true)
+        if #logAcoes == 0 then
+            imgui.Spacing()
+            imgui.TextColored(CORES.textoEscuro, "  Nenhuma acao registrada nesta sessao.")
+        else
+            for i, log in ipairs(logAcoes) do
+                imgui.Spacing()
+                local iconPos = imgui.GetCursorScreenPos()
+                local dl = imgui.GetWindowDrawList()
+                dl:AddRectFilled(
+                    imgui.ImVec2(iconPos.x + 4, iconPos.y + 2),
+                    imgui.ImVec2(iconPos.x + 22, iconPos.y + 18),
+                    imgui.GetColorU32(CORES.azul),
+                    3.0
+                )
+                imgui.Dummy(imgui.ImVec2(28, 0))
+                imgui.SameLine()
+                imgui.TextColored(CORES.textoBranco, log.texto)
+                local horaW = imgui.CalcTextSize(log.hora).x
+                imgui.SameLine(imgui.GetContentRegionAvailWidth() - horaW)
+                imgui.TextColored(CORES.textoEscuro, log.hora)
+                if i < #logAcoes then
+                    imgui.Separator()
+                end
+            end
+        end
+    imgui.EndChild()
+    imgui.PopStyleColor()
+
+    imgui.NextColumn()
+
+    tituloSecao("Info")
+    imgui.PushStyleColor(imgui.Col.ChildWindowBg, CORES.cardFundo)
+    imgui.BeginChild("InfoPanel", imgui.ImVec2(0, 200), true)
+        imgui.Spacing()
+        imgui.TextColored(CORES.textoEscuro, "  Data:")
+        imgui.TextColored(CORES.textoBranco, "  " .. os.date("%d/%m/%Y") .. " (" .. getSemana() .. ")")
+        imgui.Spacing()
+        imgui.TextColored(CORES.textoEscuro, "  Hora:")
+        imgui.TextColored(CORES.textoBranco, "  " .. os.date("%H:%M:%S"))
+        imgui.Spacing()
+        imgui.TextColored(CORES.textoEscuro, "  Uptime:")
+        local upS = uptime % 60
+        imgui.TextColored(CORES.textoBranco, string.format("  %02d:%02d:%02d", upH, upM, upS))
+        imgui.Spacing()
+        imgui.Separator()
+        imgui.Spacing()
+        imgui.TextColored(CORES.textoEscuro, "  Hot-Reload:")
+        imgui.TextColored(CORES.pontoVerde, "  Ativo")
+    imgui.EndChild()
+    imgui.PopStyleColor()
+
+    imgui.Columns(1)
+end
+
+-- ==========================================
+-- PAGINA: JOGADORES
+-- ==========================================
+function desenharPaginaJogadores()
+    imgui.SetWindowFontScale(1.4)
+    imgui.TextColored(CORES.textoBranco, "Jogadores Online")
+    imgui.SetWindowFontScale(1.0)
+    imgui.Spacing()
+
+    imgui.TextColored(CORES.textoEscuro, "Buscar:")
+    imgui.SameLine()
+    imgui.PushItemWidth(250)
+    imgui.InputText("##searchJogadores", pesquisa)
+    imgui.PopItemWidth()
+    imgui.Spacing()
+
+    imgui.PushStyleColor(imgui.Col.ChildWindowBg, CORES.cardFundo)
+    imgui.BeginChild("ListaJogadores", imgui.ImVec2(0, -1), true)
+        imgui.Columns(4, "jogadoresHeader", true)
+        imgui.SetColumnWidth(0, 60)
+        imgui.SetColumnWidth(1, 200)
+        imgui.SetColumnWidth(2, 80)
+        imgui.TextColored(CORES.textoEscuro, "ID")
+        imgui.NextColumn()
+        imgui.TextColored(CORES.textoEscuro, "Nome")
+        imgui.NextColumn()
+        imgui.TextColored(CORES.textoEscuro, "Score")
+        imgui.NextColumn()
+        imgui.TextColored(CORES.textoEscuro, "Ping")
+        imgui.Columns(1)
+        imgui.Separator()
+
+        for i = 0, 1000 do
+            if sampIsPlayerConnected(i) then
+                local nick = sampGetPlayerNickname(i)
+                local searchTerm = pesquisa.v:lower()
+                if searchTerm == "" or nick:lower():find(searchTerm, 1, true) or tostring(i):find(searchTerm, 1, true) then
+                    local isSelected = selectedPlayer == i
+                    imgui.Columns(4, "jogadoresRow" .. i, true)
+                    imgui.SetColumnWidth(0, 60)
+                    imgui.SetColumnWidth(1, 200)
+                    imgui.SetColumnWidth(2, 80)
+
+                    if isSelected then
+                        imgui.TextColored(CORES.acento, tostring(i))
+                    else
+                        imgui.Text(tostring(i))
+                    end
+                    imgui.NextColumn()
+
+                    if imgui.Selectable(nick .. "##player" .. i, isSelected, imgui.SelectableFlags.SpanAllColumns) then
+                        selectedPlayer = i
+                        campoNickIDF.v = tostring(i)
+                    end
+                    imgui.NextColumn()
+                    imgui.Text(tostring(sampGetPlayerScore(i)))
+                    imgui.NextColumn()
+                    imgui.Text(tostring(sampGetPlayerPing(i)) .. "ms")
+                    imgui.Columns(1)
+                end
+            end
+        end
+    imgui.EndChild()
+    imgui.PopStyleColor()
+end
+
+-- ==========================================
+-- PAGINA: GERENCIAR
+-- ==========================================
+function desenharPaginaGerenciar()
+    local availW = imgui.GetContentRegionAvailWidth()
+    local bW = (availW - 24) / 3
+    local bH = 34
+
+    imgui.SetWindowFontScale(1.4)
+    imgui.TextColored(CORES.textoBranco, "Gerenciamento")
+    imgui.SetWindowFontScale(1.0)
+    imgui.Spacing()
+    imgui.TextColored(CORES.textoEscuro, "Comandos administrativos do servidor.")
+    imgui.Spacing()
+    imgui.Spacing()
+
+    tituloSecao("Administracao")
+    botaoAcento("Modo Admin##g1", imgui.ImVec2(bW, bH), function() acaoSom("/tra") end)
+    imgui.SameLine(0, 8)
+    botaoAcento("Fila##g2", imgui.ImVec2(bW, bH), function() acaoSom("/fila") end)
+    imgui.SameLine(0, 8)
+    botaoAcento("Reports##g3", imgui.ImVec2(bW, bH), function() acaoSom("/reportados") end)
+    imgui.Spacing()
+    botaoCinza("Voar##g4", imgui.ImVec2(bW, bH), function() acaoSom("/voaron") end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Staffs Online##g5", imgui.ImVec2(bW, bH), function() acaoSom("/admins") end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Finalizar Att##g6", imgui.ImVec2(bW, bH), function() acaoSom("/fimatt") end)
+    imgui.Spacing()
+    botaoCinza("Ver Presos##g7", imgui.ImVec2(bW, bH), function() acaoSom("/presos") end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Trocar Modo##g8", imgui.ImVec2(bW, bH), function() acaoSom("/trocarmodo") end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Reconectar##g9", imgui.ImVec2(bW, bH), function() acaoSom("/connect") end)
+    imgui.Spacing()
+    imgui.Spacing()
+
+    tituloSecao("Servidor")
+    botaoCinza("Fix Caixas##s1", imgui.ImVec2(bW, bH), function() acaoSom("/consertarcaixas") end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Att Ranking##s2", imgui.ImVec2(bW, bH), function() acaoSom("/atualizarrank") end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Iniciar Guerra##s3", imgui.ImVec2(bW, bH), function() acaoSom("/guerramorro") end)
+    imgui.Spacing()
+    botaoCinza("Reset Veiculos##s4", imgui.ImVec2(bW, bH), function() acaoSom("/dc") end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Limpar Chat##s5", imgui.ImVec2(bW, bH), function()
+        if validarMotivo(motivo.v) then
+            acaoSom("/lc " .. sanitizarEntrada(motivo.v))
+        else
+            sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Informe um motivo valido (min 3 chars)."), -1)
+        end
+    end)
+    imgui.Spacing()
+    imgui.Spacing()
+
+    tituloSecao("Interacao com Player")
+    if campoNickIDF.v == "" then
+        imgui.TextColored(CORES.laranja, "Selecione um jogador na aba Jogadores primeiro.")
+        imgui.Spacing()
+    else
+        imgui.TextColored(CORES.textoEscuro, "Alvo: ")
+        imgui.SameLine()
+        imgui.TextColored(CORES.acento, campoNickIDF.v)
+        imgui.Spacing()
+    end
+
+    local iW = (availW - 32) / 4
+    botaoCinza("Ir##i1", imgui.ImVec2(iW, bH), function() verificarPlayerEExecutar("/ir " .. sanitizarEntrada(campoNickIDF.v)) end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Trazer##i2", imgui.ImVec2(iW, bH), function() verificarPlayerEExecutar("/tr " .. sanitizarEntrada(campoNickIDF.v)) end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Espiar##i3", imgui.ImVec2(iW, bH), function() verificarPlayerEExecutar("/tv " .. sanitizarEntrada(campoNickIDF.v)) end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Parar Espiar##i4", imgui.ImVec2(iW, bH), function() acaoSom("/tvoff") end)
+    imgui.Spacing()
+    botaoCinza("Segurar##i5", imgui.ImVec2(iW, bH), function() verificarPlayerEExecutar("/segurar " .. sanitizarEntrada(campoNickIDF.v)) end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Largar##i6", imgui.ImVec2(iW, bH), function() verificarPlayerEExecutar("/largar " .. sanitizarEntrada(campoNickIDF.v)) end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Congelar##i7", imgui.ImVec2(iW, bH), function() verificarPlayerEExecutar("/congelar " .. sanitizarEntrada(campoNickIDF.v)) end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Descongelar##i8", imgui.ImVec2(iW, bH), function() verificarPlayerEExecutar("/descongelar " .. sanitizarEntrada(campoNickIDF.v)) end)
+    imgui.Spacing()
+    botaoAcento("Matar##i9", imgui.ImVec2(iW, bH), function()
+        acaoPerigosa("Matar jogador " .. campoNickIDF.v, "/killplayer " .. sanitizarEntrada(campoNickIDF.v))
+    end)
+    imgui.SameLine(0, 8)
+    botaoAcento("Explodir##i10", imgui.ImVec2(iW, bH), function()
+        acaoPerigosa("Explodir jogador " .. campoNickIDF.v, "/explodir " .. sanitizarEntrada(campoNickIDF.v))
+    end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Tapa##i11", imgui.ImVec2(iW, bH), function() verificarPlayerEExecutar("/tapa " .. sanitizarEntrada(campoNickIDF.v)) end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Forcar Spawn##i12", imgui.ImVec2(iW, bH), function() verificarPlayerEExecutar("/spawnarplayer " .. sanitizarEntrada(campoNickIDF.v)) end)
+    imgui.Spacing()
+    botaoCinza("Soltar##i13", imgui.ImVec2(iW, bH), function()
+        verificarPlayerEExecutar("/soltar " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(motivo.v),
+            {{nome = "Motivo", valor = motivo.v}})
+    end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Ret. Arma##i14", imgui.ImVec2(iW, bH), function() verificarPlayerEExecutar("/rarma " .. sanitizarEntrada(campoNickIDF.v)) end)
+    imgui.SameLine(0, 8)
+    botaoCinza("Ret. Armas Todos##i15", imgui.ImVec2(iW, bH), function() acaoSom("/rarmast") end)
+    imgui.SameLine(0, 8)
+    botaoVerde("Reviver##i16", imgui.ImVec2(iW, bH), function() verificarPlayerEExecutar("/god " .. sanitizarEntrada(campoNickIDF.v)) end)
+end
+
+-- ==========================================
+-- PAGINA: PUNICOES
+-- ==========================================
+function desenharPaginaPunicoes()
+    local availW = imgui.GetContentRegionAvailWidth()
+
+    imgui.SetWindowFontScale(1.4)
+    imgui.TextColored(CORES.textoBranco, u8("Punicoes"))
+    imgui.SetWindowFontScale(1.0)
+    imgui.Spacing()
+    imgui.TextColored(CORES.textoEscuro, u8("Gerencie punicoes e acessos dos jogadores."))
+    imgui.Spacing()
+    imgui.Spacing()
+
+    imgui.Columns(2, "punicoesLayout", false)
+    imgui.SetColumnWidth(0, 300)
+
+    -- Campos de entrada
+    imgui.PushStyleColor(imgui.Col.ChildWindowBg, CORES.cardFundo)
+    imgui.BeginChild("CamposPunicao", imgui.ImVec2(-8, 280), true)
+        imgui.Spacing()
+        tituloSecao("Dados da Punicao")
+
+        imgui.Text("  ID/Nick:")
+        imgui.SameLine(100)
+        imgui.PushItemWidth(-12)
+        imgui.InputText("##pn", campoNickIDF)
+        imgui.PopItemWidth()
+
+        imgui.Spacing()
+        imgui.Text("  Motivo:")
+        imgui.SameLine(100)
+        imgui.PushItemWidth(-12)
+        imgui.InputText("##pm", motivo)
+        imgui.PopItemWidth()
+
+        imgui.Spacing()
+        imgui.Text("  Tempo:")
+        imgui.SameLine(100)
+        imgui.PushItemWidth(-12)
+        imgui.InputText("##pt", tempo)
+        imgui.PopItemWidth()
+
+        imgui.Spacing()
+        imgui.Text("  Avisos:")
+        imgui.SameLine(100)
+        imgui.PushItemWidth(-12)
+        imgui.InputText("##pav", avisos)
+        imgui.PopItemWidth()
+
+        imgui.Spacing()
+        imgui.Text("  ADV:")
+        imgui.SameLine(100)
+        imgui.PushItemWidth(-12)
+        imgui.InputText("##padv", adv)
+        imgui.PopItemWidth()
+
+        imgui.Spacing()
+        imgui.Text("  IP:")
+        imgui.SameLine(100)
+        imgui.PushItemWidth(-12)
+        imgui.InputText("##pip", campoIP)
+        imgui.PopItemWidth()
+
+        imgui.Spacing()
+        if campoNickIDF.v ~= "" then
+            imgui.TextColored(CORES.pontoVerde, "  [OK] ID/Nick preenchido")
+        else
+            imgui.TextColored(CORES.vermelho, "  [--] ID/Nick vazio")
+        end
+    imgui.EndChild()
+    imgui.PopStyleColor()
+
+    imgui.NextColumn()
+
+    local pW = (imgui.GetColumnWidth() - 16) / 2
+    local pH = 32
+
+    -- Punicoes Graves (vermelho)
+    tituloSecao("Graves")
+    imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0.55, 0.12, 0.12, 1.00))
+    imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.70, 0.18, 0.18, 1.00))
+    imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.85, 0.10, 0.10, 1.00))
+    if imgui.Button("Ban##p1", imgui.ImVec2(pW, pH)) then
+        acaoPerigosa("BAN: " .. campoNickIDF.v, "/ban " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(tempo.v) .. " " .. sanitizarEntrada(motivo.v))
+    end
+    imgui.SameLine(0, 8)
+    if imgui.Button("Kick##p2", imgui.ImVec2(pW, pH)) then
+        acaoPerigosa("KICK: " .. campoNickIDF.v, "/kick " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(motivo.v))
+    end
+    imgui.Spacing()
+    if imgui.Button("Ag. Ban##p3", imgui.ImVec2(pW, pH)) then
+        acaoPerigosa("AG.BAN: " .. campoNickIDF.v, "/agendarban " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(motivo.v))
+    end
+    imgui.SameLine(0, 8)
+    if imgui.Button("Telagem##p4", imgui.ImVec2(pW, pH)) then
+        acaoPerigosa("TELAGEM: " .. campoNickIDF.v, "/telagem " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(motivo.v))
+    end
+    imgui.PopStyleColor(3)
+    imgui.Spacing()
+
+    -- Punicoes Medias (laranja)
+    tituloSecao("Moderadas")
+    imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0.50, 0.30, 0.08, 1.00))
+    imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.65, 0.38, 0.12, 1.00))
+    imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.80, 0.45, 0.10, 1.00))
+    if imgui.Button("Cadeia##p5", imgui.ImVec2(pW, pH)) then
+        acaoSom("/cadeia " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(tempo.v) .. " " .. sanitizarEntrada(motivo.v))
+    end
+    imgui.SameLine(0, 8)
+    if imgui.Button("Ag. Cad##p6", imgui.ImVec2(pW, pH)) then
+        acaoSom("/agendarcadeia " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(tempo.v) .. " " .. sanitizarEntrada(avisos.v) .. " " .. sanitizarEntrada(motivo.v))
+    end
+    imgui.Spacing()
+    if imgui.Button("ADV##p7", imgui.ImVec2(pW, pH)) then
+        acaoSom("/adv " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(adv.v))
+    end
+    imgui.SameLine(0, 8)
+    if imgui.Button("Rem. Tela##p8", imgui.ImVec2(pW, pH)) then
+        acaoSom("/removertelagem " .. sanitizarEntrada(campoNickIDF.v))
+    end
+    imgui.PopStyleColor(3)
+    imgui.Spacing()
+
+    -- Remocoes (verde)
+    tituloSecao("Remocoes")
+    imgui.PushStyleColor(imgui.Col.Button, CORES.btnVerde)
+    imgui.PushStyleColor(imgui.Col.ButtonHovered, CORES.btnVerdeHover)
+    imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.10, 0.45, 0.25, 1.00))
+    if imgui.Button("Desban##p9", imgui.ImVec2(pW, pH)) then
+        acaoSom("/desbanconta " .. sanitizarEntrada(campoNickIDF.v))
+    end
+    imgui.SameLine(0, 8)
+    if imgui.Button("Limp. Ban##p10", imgui.ImVec2(pW, pH)) then
+        acaoSom("/limparban " .. sanitizarEntrada(campoNickIDF.v))
+    end
+    imgui.Spacing()
+    if imgui.Button("Limp. Cad##p11", imgui.ImVec2(pW, pH)) then
+        acaoSom("/limparcadeia " .. sanitizarEntrada(campoNickIDF.v))
+    end
+    imgui.SameLine(0, 8)
+    if imgui.Button("Rem. ADV##p12", imgui.ImVec2(pW, pH)) then
+        acaoSom("/retiraradv " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(adv.v))
+    end
+    imgui.Spacing()
+    if imgui.Button("Desb. IP##p13", imgui.ImVec2(pW, pH)) then
+        acaoSom("/desbanip " .. sanitizarEntrada(campoIP.v))
+    end
+    imgui.SameLine(0, 8)
+    if imgui.Button("Liberar IP##p14", imgui.ImVec2(pW, pH)) then
+        acaoSom("/liberarip " .. sanitizarEntrada(campoIP.v))
+    end
+    imgui.PopStyleColor(3)
+
+    imgui.Columns(1)
+end
+
+-- ==========================================
+-- PAGINA: COMANDOS (Setagem + Extras)
+-- ==========================================
+function desenharPaginaComandos()
+    local availW = imgui.GetContentRegionAvailWidth()
+    local bW = (availW - 24) / 3
+    local bH = 34
+
+    imgui.SetWindowFontScale(1.4)
+    imgui.TextColored(CORES.textoBranco, "Comandos")
+    imgui.SetWindowFontScale(1.0)
+    imgui.Spacing()
+    imgui.TextColored(CORES.textoEscuro, "Setagem e comandos extras.")
+    imgui.Spacing()
+    imgui.Spacing()
+
+    if campoNickIDF.v == "" then
+        imgui.TextColored(CORES.laranja, "Selecione um jogador na aba Jogadores primeiro.")
+        imgui.Spacing()
+    else
+        imgui.TextColored(CORES.textoEscuro, "Alvo: ")
+        imgui.SameLine()
+        imgui.TextColored(CORES.acento, campoNickIDF.v)
+        imgui.Spacing()
+    end
+
+    tituloSecao("Setagem")
+    botaoVerde("Set. Booster##c1", imgui.ImVec2(bW, bH), function() acaoSom("/setbooster " .. sanitizarEntrada(campoNickIDF.v) .. " 1") end)
+    imgui.SameLine(0, 8)
+    botaoAcento("Ret. Booster##c2", imgui.ImVec2(bW, bH), function() acaoSom("/setbooster " .. sanitizarEntrada(campoNickIDF.v) .. " 0") end)
+    imgui.SameLine(0, 8)
+    botaoVerde("Set. YT##c3", imgui.ImVec2(bW, bH), function() acaoSom("/setyt " .. sanitizarEntrada(campoNickIDF.v) .. " 1") end)
+    imgui.Spacing()
+    botaoAcento("Ret. YT##c4", imgui.ImVec2(bW, bH), function() acaoSom("/setyt " .. sanitizarEntrada(campoNickIDF.v) .. " 0") end)
+    imgui.Spacing()
+    imgui.Spacing()
+
+    tituloSecao("Utilitarios")
+    botaoCinza("Limpar Todos os Campos##util1", imgui.ImVec2(availW * 0.5, bH), function()
+        tempo.v = ""; motivo.v = ""; avisos.v = ""; adv.v = ""
+        campoIP.v = ""; campoNickIDF.v = ""; pesquisa.v = ""
+        selectedPlayer = -1
+    end)
+end
+
+-- ==========================================
+-- PAGINA: APARENCIA (Configuracoes)
+-- ==========================================
+function desenharPaginaAparencia()
+    imgui.SetWindowFontScale(1.4)
+    imgui.TextColored(CORES.textoBranco, u8("Aparencia"))
+    imgui.SetWindowFontScale(1.0)
+    imgui.Spacing()
+    imgui.TextColored(CORES.textoEscuro, u8("Personalize o painel."))
+    imgui.Spacing()
+    imgui.Spacing()
+
+    imgui.PushStyleColor(imgui.Col.ChildWindowBg, CORES.cardFundo)
+    imgui.BeginChild("ConfigPanel", imgui.ImVec2(0, 200), true)
+        imgui.Spacing()
+        imgui.Text("  Som de Notificacao:")
+        imgui.SameLine(200)
+        imgui.PushItemWidth(120)
+        if imgui.InputInt("##idSom", somSelecionado) then addOneOffSound(0, 0, 0, somSelecionado.v) end
+        imgui.PopItemWidth()
+        imgui.Spacing()
+        imgui.Spacing()
+        imgui.Text("  ")
+        imgui.SameLine()
+        imgui.Checkbox("Confirmar acoes perigosas (Ban/Kick/Matar)", confirmarAcao)
+        imgui.Spacing()
+        imgui.Spacing()
+        imgui.Separator()
+        imgui.Spacing()
+        botaoAcento("  Salvar Configuracoes  ##save", imgui.ImVec2(-1, 36), function()
+            local wPos = imgui.GetWindowPos()
+            local wSize = imgui.GetWindowSize()
+            config.settings = {
+                posX = wPos.x, posY = wPos.y,
+                tamanhoX = wSize.x, tamanhoY = wSize.y,
+                somID = somSelecionado.v,
+                confirmarPunicao = confirmarAcao.v,
+                cooldownCmd = cooldownSegundos
+            }
+            inicfg.save(config, configFile)
+            sampAddChatMessage(u8("{FFFF00}[Painel Admin] {FFFFFF}Configuracoes salvas com sucesso!"), -1)
+            acaoSom()
+        end)
+    imgui.EndChild()
+    imgui.PopStyleColor()
+
+    imgui.Spacing()
+    imgui.Spacing()
+
+    imgui.PushStyleColor(imgui.Col.ChildWindowBg, CORES.cardFundo)
+    imgui.BeginChild("InfoPainel", imgui.ImVec2(0, 80), true)
+        imgui.Spacing()
+        imgui.TextColored(CORES.textoEscuro, "  Painel Admin - Arcade PVP")
+        imgui.TextColored(CORES.textoEscuro, "  Auto-atualizacao: Ativa (salve o arquivo .lua e ele recarrega)")
+        imgui.TextColored(CORES.textoEscuro, "  Teclas: F2 ou /admin para abrir")
+    imgui.EndChild()
+    imgui.PopStyleColor()
 end
 
 -- ==========================================
@@ -390,749 +992,145 @@ function imgui.OnDrawFrame()
     imgui.SetNextWindowPos(imgui.ImVec2(config.settings.posX, config.settings.posY), imgui.Cond.FirstUseEver)
     imgui.SetNextWindowSize(imgui.ImVec2(config.settings.tamanhoX, config.settings.tamanhoY), imgui.Cond.FirstUseEver)
 
-    if imgui.Begin("PAINEL ADMINISTRACAO  -  ARCADE PVP", janela, imgui.WindowFlags.NoCollapse) then
+    imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.ImVec2(0, 0))
+    if imgui.Begin("##PainelAdmin", janela, imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoTitleBar + imgui.WindowFlags.NoScrollbar) then
+        imgui.PopStyleVar()
         local mainWindowPos = imgui.GetWindowPos()
         local mainWindowSize = imgui.GetWindowSize()
-        local cT = imgui.ImVec4(corTitulos.v[1], corTitulos.v[2], corTitulos.v[3], 1.0)
-        local availW = imgui.GetContentRegionAvailWidth()
-
-        -- Triple click para abrir ajustes ocultos
-        if imgui.IsWindowHovered() and imgui.IsMouseClicked(0) then
-            local t = os.clock()
-            if t - timerClique < 0.5 then cliques = cliques + 1 else cliques = 1 end
-            timerClique = t
-            if cliques >= 3 then exibirAjustes.v = not exibirAjustes.v; cliques = 0 end
-        end
+        local sidebarWidth = 200
 
         -- ==========================================
-        -- PAINEL DE AJUSTES (triple click para abrir)
+        -- SIDEBAR ESQUERDA
         -- ==========================================
-        if exibirAjustes.v then
-            imgui.PushStyleColor(imgui.Col.ChildWindowBg, imgui.ImVec4(0.06, 0.06, 0.06, 0.98))
-            imgui.BeginChild("AjustesOcultos", imgui.ImVec2(0, 220), true)
-                tituloSecao("PERSONALIZACAO DO PAINEL")
-
-                imgui.Columns(2, "coresCol", false)
-                imgui.ColorEdit4("Fundo", corPainel, 32)
-                imgui.ColorEdit4("Botoes", corBotoes, 32)
-                imgui.NextColumn()
-                imgui.ColorEdit4("Textos", corTexto, 32)
-                imgui.ColorEdit4("Categorias", corTitulos, 32)
-                imgui.Columns(1)
-
-                imgui.Spacing()
-                imgui.Separator()
-                imgui.Spacing()
-
-                imgui.PushItemWidth(120)
-                if imgui.InputInt("##idSom", somSelecionado) then addOneOffSound(0, 0, 0, somSelecionado.v) end
-                imgui.PopItemWidth()
-                imgui.SameLine(); imgui.TextDisabled("ID do som de notificacao")
-
-                imgui.Spacing()
-                imgui.Checkbox("Confirmar acoes perigosas (Ban/Kick/Matar)", confirmarAcao)
-
-                imgui.Spacing()
-                if imgui.Button("Salvar Configuracoes", imgui.ImVec2(-1, 32)) then
-                    config.settings = {
-                        corR = corPainel.v[1], corG = corPainel.v[2], corB = corPainel.v[3], corA = corPainel.v[4],
-                        btnR = corBotoes.v[1], btnG = corBotoes.v[2], btnB = corBotoes.v[3], btnA = corBotoes.v[4],
-                        textR = corTexto.v[1], textG = corTexto.v[2], textB = corTexto.v[3], textA = corTexto.v[4],
-                        titR = corTitulos.v[1], titG = corTitulos.v[2], titB = corTitulos.v[3], titA = corTitulos.v[4],
-                        posX = mainWindowPos.x, posY = mainWindowPos.y,
-                        tamanhoX = mainWindowSize.x, tamanhoY = mainWindowSize.y,
-                        somID = somSelecionado.v,
-                        confirmarPunicao = confirmarAcao.v,
-                        logAcoes = true,
-                        cooldownCmd = cooldownSegundos
-                    }
-                    inicfg.save(config, configFile)
-                    sampAddChatMessage(u8("{FFFF00}[Painel Admin] {FFFFFF}Configuracoes salvas com sucesso!"), -1)
-                    acaoSom()
-                    exibirAjustes.v = false
-                end
-            imgui.EndChild()
-            imgui.PopStyleColor()
+        imgui.PushStyleColor(imgui.Col.ChildWindowBg, CORES.sidebar)
+        imgui.BeginChild("Sidebar", imgui.ImVec2(sidebarWidth, -1), false)
             imgui.Spacing()
-        end
+            imgui.Spacing()
+            imgui.SetCursorPosX(15)
+            imgui.SetWindowFontScale(1.2)
+            imgui.TextColored(CORES.acento, ">>")
+            imgui.SameLine(0, 8)
+            imgui.TextColored(CORES.textoBranco, "Painel Admin")
+            imgui.SetWindowFontScale(1.0)
 
-        -- ==========================================
-        -- BARRA DE STATUS SUPERIOR
-        -- ==========================================
-        imgui.PushStyleColor(imgui.Col.ChildWindowBg, imgui.ImVec4(0.05, 0.05, 0.05, 0.95))
-        imgui.BeginChild("StatusBar", imgui.ImVec2(0, 45), true)
-            local uptime = os.time() - startTime
-            local upH = math.floor(uptime / 3600)
-            local upM = math.floor((uptime % 3600) / 60)
-            local upS = uptime % 60
-            local playersOnline = contarPlayersOnline()
+            imgui.SetCursorPosX(15)
+            imgui.TextColored(CORES.textoEscuro, "Controle do servidor")
+            imgui.Spacing()
+            imgui.Spacing()
+            imgui.Separator()
+            imgui.Spacing()
+            imgui.Spacing()
 
-            imgui.Columns(4, "statusCols", false)
+            imgui.SetCursorPosX(8)
+            imgui.BeginGroup()
+                botaoSidebar(">>", u8("Pagina Inicial"), 1)
+                imgui.Spacing()
+                botaoSidebar(">>", "Jogadores", 2)
+                imgui.Spacing()
+                botaoSidebar(">>", "Gerenciar", 3)
+                imgui.Spacing()
+                botaoSidebar(">>", u8("Punicoes"), 4)
+                imgui.Spacing()
+                botaoSidebar(">>", "Comandos", 5)
+                imgui.Spacing()
+                botaoSidebar(">>", u8("Aparencia"), 6)
+            imgui.EndGroup()
 
-            -- Data
-            imgui.TextColored(imgui.ImVec4(0.5, 0.5, 0.5, 1), "DATA")
-            imgui.TextColored(imgui.ImVec4(1, 1, 1, 1), os.date("%d/%m/%Y") .. " (" .. getSemana() .. ")")
-            imgui.NextColumn()
+            imgui.Spacing()
+            imgui.Spacing()
+            imgui.Separator()
+            imgui.Spacing()
+            imgui.SetCursorPosX(8)
+            imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0, 0, 0, 0))
+            imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.55, 0.12, 0.12, 0.50))
+            imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.55, 0.12, 0.12, 0.80))
+            imgui.PushStyleVar(imgui.StyleVar.ButtonTextAlign, imgui.ImVec2(0.0, 0.5))
+            if imgui.Button(">>  Sair##fechar", imgui.ImVec2(-1, 30)) then
+                janela.v = false
+            end
+            imgui.PopStyleVar()
+            imgui.PopStyleColor(3)
 
-            -- Hora
-            imgui.TextColored(imgui.ImVec4(0.5, 0.5, 0.5, 1), "HORA")
-            imgui.TextColored(imgui.ImVec4(1, 1, 1, 1), os.date("%H:%M:%S"))
-            imgui.NextColumn()
-
-            -- Tempo Online
-            imgui.TextColored(imgui.ImVec4(0.5, 0.5, 0.5, 1), "SESSAO")
-            imgui.TextColored(cT, string.format("%02d:%02d:%02d", upH, upM, upS))
-            imgui.NextColumn()
-
-            -- Players online
-            imgui.TextColored(imgui.ImVec4(0.5, 0.5, 0.5, 1), "PLAYERS")
-            imgui.TextColored(cT, tostring(playersOnline))
-
-            imgui.Columns(1)
         imgui.EndChild()
         imgui.PopStyleColor()
-
-        imgui.Spacing()
-
-        -- ==========================================
-        -- PAINEL ESQUERDO - LISTA DE PLAYERS
-        -- ==========================================
-        imgui.BeginChild("PlayersList", imgui.ImVec2(200, -1), true)
-            imgui.TextColored(cT, "PLAYERS ONLINE")
-            imgui.Separator()
-            imgui.Spacing()
-
-            -- Campo de busca
-            imgui.PushItemWidth(-1)
-            imgui.InputText("##search", pesquisa)
-            imgui.PopItemWidth()
-            if imgui.IsItemHovered() then
-                imgui.BeginTooltip()
-                imgui.Text("Busque por nome ou ID")
-                imgui.EndTooltip()
-            end
-            imgui.Spacing()
-            imgui.Separator()
-
-            -- Lista de players com scroll
-            imgui.BeginChild("ScrollPlayers", imgui.ImVec2(0, -80), false)
-            for i = 0, 1000 do
-                if sampIsPlayerConnected(i) then
-                    local nick = sampGetPlayerNickname(i)
-                    local searchTerm = pesquisa.v:lower()
-                    if searchTerm == "" or nick:lower():find(searchTerm, 1, true) or tostring(i):find(searchTerm, 1, true) then
-                        local isSelected = selectedPlayer == i
-                        if isSelected then
-                            imgui.PushStyleColor(imgui.Col.Text, cT)
-                        end
-                        if imgui.Selectable(string.format("[%d] %s", i, nick), isSelected) then
-                            selectedPlayer = i
-                            campoNickIDF.v = tostring(i)
-                        end
-                        if isSelected then
-                            imgui.PopStyleColor()
-                        end
-                    end
-                end
-            end
-            imgui.EndChild()
-
-            imgui.Separator()
-            imgui.Spacing()
-
-            -- Info do player selecionado
-            if selectedPlayer >= 0 and sampIsPlayerConnected(selectedPlayer) then
-                local nick = sampGetPlayerNickname(selectedPlayer)
-                local score = sampGetPlayerScore(selectedPlayer)
-                local ping = sampGetPlayerPing(selectedPlayer)
-                imgui.TextColored(cT, nick)
-                imgui.TextColored(imgui.ImVec4(0.6, 0.6, 0.6, 1), string.format("ID: %d", selectedPlayer))
-                imgui.TextColored(imgui.ImVec4(0.6, 0.6, 0.6, 1), string.format("Score: %d | Ping: %dms", score, ping))
-            else
-                imgui.TextColored(imgui.ImVec4(0.35, 0.35, 0.35, 1), "Nenhum player")
-                imgui.TextColored(imgui.ImVec4(0.35, 0.35, 0.35, 1), "selecionado")
-            end
-        imgui.EndChild()
 
         imgui.SameLine()
 
         -- ==========================================
-        -- PAINEL DIREITO - AREA PRINCIPAL COM ABAS
+        -- AREA PRINCIPAL (direita)
         -- ==========================================
-        imgui.BeginChild("MainArea", imgui.ImVec2(0, -1), false)
+        imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.ImVec2(16, 12))
+        imgui.BeginChild("MainContent", imgui.ImVec2(0, -1), false)
 
-            -- Abas de navegacao
-            local abaW = (imgui.GetContentRegionAvailWidth() - 25) / 5
-            local abas = {"Gerenciamento", "Interacao", "Punicoes", "Setagem", "Log"}
-            for i, nome in ipairs(abas) do
-                if i > 1 then imgui.SameLine() end
-                if abaAtual == i then
-                    imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(corBotoes.v[1], corBotoes.v[2], corBotoes.v[3], 1.0))
-                    imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(corBotoes.v[1], corBotoes.v[2], corBotoes.v[3], 1.0))
-                    imgui.PushStyleColor(imgui.Col.Text, imgui.ImVec4(0, 0, 0, 1))
-                end
-                local pushed = (abaAtual == i)
-                if imgui.Button(nome .. "##aba" .. i, imgui.ImVec2(abaW, 30)) then
-                    abaAtual = i
-                end
-                if pushed then
-                    imgui.PopStyleColor(3)
-                end
-            end
-
-            -- Linha decorativa abaixo das abas
-            local drawList = imgui.GetWindowDrawList()
-            local cursorPos = imgui.GetCursorScreenPos()
-            local tabLineW = imgui.GetContentRegionAvailWidth()
-            drawList:AddLine(
-                imgui.ImVec2(cursorPos.x, cursorPos.y + 2),
-                imgui.ImVec2(cursorPos.x + tabLineW, cursorPos.y + 2),
-                imgui.GetColorU32(imgui.ImVec4(corBotoes.v[1], corBotoes.v[2], corBotoes.v[3], 0.5)),
-                2.0
-            )
+            -- Top bar com hora
+            local topAvailW = imgui.GetContentRegionAvailWidth()
+            local horaStr = os.date("%H:%M")
+            local horaW = imgui.CalcTextSize(horaStr).x
+            imgui.SetCursorPosX(topAvailW - horaW - 10)
+            imgui.TextColored(CORES.textoEscuro, horaStr)
+            imgui.Spacing()
+            imgui.Separator()
             imgui.Spacing()
             imgui.Spacing()
 
-            local bW = (imgui.GetContentRegionAvailWidth() - 30) / 5
-            local bH = 28
-
-            -- ==========================================
-            -- ABA 1: GERENCIAMENTO
-            -- ==========================================
-            if abaAtual == 1 then
-                tituloSecao("COMANDOS ADMINISTRATIVOS")
-
-                -- Linha 1
-                botaoComTooltip("Modo Admin", imgui.ImVec2(bW, bH), "Ativar/Desativar modo admin (/tra)", function() acaoSom("/tra") end)
-                imgui.SameLine()
-                botaoComTooltip("Fila", imgui.ImVec2(bW, bH), "Ver fila de atendimento (/fila)", function() acaoSom("/fila") end)
-                imgui.SameLine()
-                botaoComTooltip("Reports", imgui.ImVec2(bW, bH), "Ver jogadores reportados (/reportados)", function() acaoSom("/reportados") end)
-                imgui.SameLine()
-                botaoComTooltip("Voar", imgui.ImVec2(bW, bH), "Ativar modo voo (/voaron)", function() acaoSom("/voaron") end)
-                imgui.SameLine()
-                botaoComTooltip("Limpar Campos", imgui.ImVec2(bW, bH), "Limpar todos os campos de entrada", function()
-                    tempo.v = ""; motivo.v = ""; avisos.v = ""; adv.v = ""
-                    campoIP.v = ""; campoNickIDF.v = ""; pesquisa.v = ""
-                    selectedPlayer = -1
-                end)
-
-                imgui.Spacing()
-
-                -- Linha 2
-                botaoComTooltip("Alterar Modo", imgui.ImVec2(bW, bH), "Trocar modo de jogo (/trocarmodo)", function() acaoSom("/trocarmodo") end)
-                imgui.SameLine()
-                botaoComTooltip("Staffs Online", imgui.ImVec2(bW, bH), "Ver admins online (/admins)", function() acaoSom("/admins") end)
-                imgui.SameLine()
-                botaoComTooltip("Finalizar Att", imgui.ImVec2(bW, bH), "Finalizar atendimento (/fimatt)", function() acaoSom("/fimatt") end)
-                imgui.SameLine()
-                botaoComTooltip("Reset Veiculos", imgui.ImVec2(bW, bH), "Resetar veiculos do servidor (/dc)", function() acaoSom("/dc") end)
-                imgui.SameLine()
-                botaoComTooltip("Ver Presos", imgui.ImVec2(bW, bH), "Ver jogadores presos (/presos)", function() acaoSom("/presos") end)
-
-                imgui.Spacing()
-
-                -- Linha 3
-                botaoComTooltip("Fix Caixas", imgui.ImVec2(bW, bH), "Consertar caixas do servidor", function() acaoSom("/consertarcaixas") end)
-                imgui.SameLine()
-                botaoComTooltip("Att Ranking", imgui.ImVec2(bW, bH), "Atualizar ranking do servidor", function() acaoSom("/atualizarrank") end)
-                imgui.SameLine()
-                botaoComTooltip("Iniciar Guerra", imgui.ImVec2(bW, bH), "Iniciar guerra de morro (/guerramorro)", function() acaoSom("/guerramorro") end)
-                imgui.SameLine()
-                botaoComTooltip("Limpar Chat", imgui.ImVec2(bW, bH), "Limpar chat do servidor (/lc)", function()
-                    if validarMotivo(motivo.v) then
-                        acaoSom("/lc " .. sanitizarEntrada(motivo.v))
-                    else
-                        sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Informe um motivo valido (min 3 chars)."), -1)
-                    end
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Reconectar", imgui.ImVec2(bW, bH), "Reconectar ao servidor (/connect)", function() acaoSom("/connect") end)
-
-            -- ==========================================
-            -- ABA 2: INTERACAO
-            -- ==========================================
-            elseif abaAtual == 2 then
-                -- Aviso visual se nenhum player selecionado
-                if campoNickIDF.v == "" then
-                    imgui.PushStyleColor(imgui.Col.ChildWindowBg, imgui.ImVec4(0.15, 0.10, 0.02, 0.90))
-                    imgui.BeginChild("AvisoPlayer", imgui.ImVec2(0, 28), true)
-                        imgui.TextColored(imgui.ImVec4(1, 0.7, 0.2, 1), "  Selecione um player na lista ou digite o ID/Nick na aba Punicoes.")
-                    imgui.EndChild()
-                    imgui.PopStyleColor()
-                    imgui.Spacing()
-                end
-
-                local iW = (imgui.GetContentRegionAvailWidth() - 20) / 4
-
-                -- Sub-secao: Observacao
-                tituloSecao("OBSERVACAO")
-                botaoComTooltip("Espiar", imgui.ImVec2(iW, bH), "Espiar jogador (/tv)", function()
-                    verificarPlayerEExecutar("/tv " .. sanitizarEntrada(campoNickIDF.v))
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Parar Espiar", imgui.ImVec2(iW, bH), "Parar de espiar (/tvoff)", function() acaoSom("/tvoff") end)
-                imgui.SameLine()
-                botaoComTooltip("Ir ao Player", imgui.ImVec2(iW, bH), "Ir ate o jogador (/ir)", function()
-                    verificarPlayerEExecutar("/ir " .. sanitizarEntrada(campoNickIDF.v))
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Trazer Player", imgui.ImVec2(iW, bH), "Trazer jogador ate voce (/tr)", function()
-                    verificarPlayerEExecutar("/tr " .. sanitizarEntrada(campoNickIDF.v))
-                end)
-
-                -- Sub-secao: Controle
-                tituloSecao("CONTROLE DE PLAYER")
-                botaoComTooltip("Segurar", imgui.ImVec2(iW, bH), "Segurar jogador (/segurar)", function()
-                    verificarPlayerEExecutar("/segurar " .. sanitizarEntrada(campoNickIDF.v))
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Largar", imgui.ImVec2(iW, bH), "Largar jogador (/largar)", function()
-                    verificarPlayerEExecutar("/largar " .. sanitizarEntrada(campoNickIDF.v))
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Forcar Spawn", imgui.ImVec2(iW, bH), "Forcar spawn do jogador (/spawnarplayer)", function()
-                    verificarPlayerEExecutar("/spawnarplayer " .. sanitizarEntrada(campoNickIDF.v))
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Congelar", imgui.ImVec2(iW, bH), "Congelar jogador (/congelar)", function()
-                    verificarPlayerEExecutar("/congelar " .. sanitizarEntrada(campoNickIDF.v))
-                end)
-
-                imgui.Spacing()
-
-                botaoComTooltip("Descongelar", imgui.ImVec2(iW, bH), "Descongelar jogador (/descongelar)", function()
-                    verificarPlayerEExecutar("/descongelar " .. sanitizarEntrada(campoNickIDF.v))
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Reviver", imgui.ImVec2(iW, bH), "Reviver jogador (/god)", function()
-                    verificarPlayerEExecutar("/god " .. sanitizarEntrada(campoNickIDF.v))
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Ret. Arma", imgui.ImVec2(iW, bH), "Retirar arma do jogador (/rarma)", function()
-                    verificarPlayerEExecutar("/rarma " .. sanitizarEntrada(campoNickIDF.v))
-                end)
-                imgui.SameLine()
-                botaoComTooltip("R. Armas Todos", imgui.ImVec2(iW, bH), "Retirar armas de todos (/rarmast)", function() acaoSom("/rarmast") end)
-
-                -- Sub-secao: Acoes Severas (visual vermelho)
-                tituloSecao("ACOES SEVERAS")
-                imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0.45, 0.10, 0.10, 1.0))
-                imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.65, 0.15, 0.15, 1.0))
-                imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.85, 0.10, 0.10, 1.0))
-
-                botaoComTooltip("Matar", imgui.ImVec2(iW, bH), "Matar jogador (/killplayer) - Requer confirmacao", function()
-                    if campoNickIDF.v ~= "" then
-                        acaoPerigosa("MATAR jogador ID " .. campoNickIDF.v, "/killplayer " .. sanitizarEntrada(campoNickIDF.v))
-                    else
-                        sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Selecione um player primeiro."), -1)
-                    end
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Explodir", imgui.ImVec2(iW, bH), "Explodir jogador (/explodir) - Requer confirmacao", function()
-                    if campoNickIDF.v ~= "" then
-                        acaoPerigosa("EXPLODIR jogador ID " .. campoNickIDF.v, "/explodir " .. sanitizarEntrada(campoNickIDF.v))
-                    else
-                        sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Selecione um player primeiro."), -1)
-                    end
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Tapa", imgui.ImVec2(iW, bH), "Dar tapa no jogador (/tapa)", function()
-                    verificarPlayerEExecutar("/tapa " .. sanitizarEntrada(campoNickIDF.v))
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Soltar Preso", imgui.ImVec2(iW, bH), "Soltar jogador da cadeia (/soltar) - Precisa de motivo", function()
-                    if campoNickIDF.v ~= "" and validarMotivo(motivo.v) then
-                        acaoSom("/soltar " .. sanitizarEntrada(campoNickIDF.v) .. " " .. sanitizarEntrada(motivo.v))
-                    else
-                        sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha o ID e o motivo para soltar."), -1)
-                    end
-                end)
-
-                imgui.PopStyleColor(3)
-
-            -- ==========================================
-            -- ABA 3: PUNICOES & ACESSOS
-            -- ==========================================
-            elseif abaAtual == 3 then
-                tituloSecao("PUNICOES E ACESSOS")
-
-                -- Campos de entrada com validacao visual
-                imgui.PushStyleColor(imgui.Col.ChildWindowBg, imgui.ImVec4(0.06, 0.06, 0.06, 0.98))
-                imgui.BeginChild("CamposPunicao", imgui.ImVec2(0, 195), true)
-                    imgui.Columns(2, "inputCols", false)
-                    imgui.SetColumnWidth(0, 290)
-
-                    imgui.Spacing()
-                    imgui.AlignTextToFramePadding()
-                    imgui.TextColored(cT, "ID/Nick:"); imgui.SameLine(105)
-                    imgui.PushItemWidth(165); imgui.InputText("##n", campoNickIDF); imgui.PopItemWidth()
-
-                    imgui.AlignTextToFramePadding()
-                    imgui.TextColored(cT, "Tempo:"); imgui.SameLine(105)
-                    imgui.PushItemWidth(165); imgui.InputText("##t", tempo); imgui.PopItemWidth()
-
-                    imgui.AlignTextToFramePadding()
-                    imgui.TextColored(cT, "Motivo:"); imgui.SameLine(105)
-                    imgui.PushItemWidth(165); imgui.InputText("##m", motivo); imgui.PopItemWidth()
-
-                    imgui.AlignTextToFramePadding()
-                    imgui.TextColored(cT, "Avisos Cadeia:"); imgui.SameLine(105)
-                    imgui.PushItemWidth(165); imgui.InputText("##avi", avisos); imgui.PopItemWidth()
-
-                    imgui.AlignTextToFramePadding()
-                    imgui.TextColored(cT, "Motivo ADV:"); imgui.SameLine(105)
-                    imgui.PushItemWidth(165); imgui.InputText("##adv", adv); imgui.PopItemWidth()
-
-                    imgui.AlignTextToFramePadding()
-                    imgui.TextColored(cT, "IP:"); imgui.SameLine(105)
-                    imgui.PushItemWidth(165); imgui.InputText("##ip", campoIP); imgui.PopItemWidth()
-
-                    imgui.NextColumn()
-
-                    -- Painel de validacao em tempo real
-                    imgui.Spacing()
-                    imgui.TextColored(imgui.ImVec4(0.5, 0.5, 0.5, 1), "Status dos Campos:")
-                    imgui.Spacing()
-
-                    -- Indicador ID/Nick
-                    if campoNickIDF.v ~= "" then
-                        imgui.TextColored(imgui.ImVec4(0.2, 0.85, 0.3, 1), "[OK] ID/Nick preenchido")
-                    else
-                        imgui.TextColored(imgui.ImVec4(0.85, 0.25, 0.25, 1), "[--] ID/Nick vazio")
-                    end
-
-                    -- Indicador Motivo
-                    if motivo.v ~= "" and #motivo.v >= 3 then
-                        imgui.TextColored(imgui.ImVec4(0.2, 0.85, 0.3, 1), "[OK] Motivo valido")
-                    elseif motivo.v ~= "" and #motivo.v < 3 then
-                        imgui.TextColored(imgui.ImVec4(0.9, 0.6, 0.1, 1), "[!!] Motivo muito curto (min 3)")
-                    else
-                        imgui.TextColored(imgui.ImVec4(0.85, 0.25, 0.25, 1), "[--] Motivo vazio")
-                    end
-
-                    -- Indicador Tempo
-                    if tempo.v ~= "" then
-                        imgui.TextColored(imgui.ImVec4(0.2, 0.85, 0.3, 1), "[OK] Tempo preenchido")
-                    else
-                        imgui.TextColored(imgui.ImVec4(0.5, 0.5, 0.5, 1), "[  ] Tempo (quando necessario)")
-                    end
-
-                    -- Indicador IP
-                    if campoIP.v ~= "" then
-                        imgui.TextColored(imgui.ImVec4(0.2, 0.85, 0.3, 1), "[OK] IP preenchido")
-                    else
-                        imgui.TextColored(imgui.ImVec4(0.5, 0.5, 0.5, 1), "[  ] IP (quando necessario)")
-                    end
-
-                    imgui.Columns(1)
-                imgui.EndChild()
-                imgui.PopStyleColor()
-
-                imgui.Spacing()
-
-                -- Botoes de punicao organizados por gravidade
-                local pW = (imgui.GetContentRegionAvailWidth() - 10) / 2
-
-                -- PUNICOES GRAVES (vermelho)
-                imgui.TextColored(imgui.ImVec4(0.9, 0.2, 0.2, 1), "Punicoes Graves")
-                imgui.Spacing()
-                imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0.45, 0.08, 0.08, 1.0))
-                imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.65, 0.12, 0.12, 1.0))
-                imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.85, 0.08, 0.08, 1.0))
-
-                botaoComTooltip("Ban", imgui.ImVec2(pW, 26), "Banir: /ban [ID] [Tempo] [Motivo]", function()
-                    local id = sanitizarEntrada(campoNickIDF.v)
-                    local t = sanitizarEntrada(tempo.v)
-                    local m = sanitizarEntrada(motivo.v)
-                    if id ~= "" and t ~= "" and validarMotivo(m) then
-                        acaoPerigosa("BANIR jogador " .. id .. " por " .. t .. " - " .. m, "/ban " .. id .. " " .. t .. " " .. m)
-                    else
-                        sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha ID, Tempo e Motivo para banir."), -1)
-                    end
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Kick", imgui.ImVec2(pW, 26), "Kickar: /kick [ID] [Motivo]", function()
-                    local id = sanitizarEntrada(campoNickIDF.v)
-                    local m = sanitizarEntrada(motivo.v)
-                    if id ~= "" and validarMotivo(m) then
-                        acaoPerigosa("KICKAR jogador " .. id .. " - " .. m, "/kick " .. id .. " " .. m)
-                    else
-                        sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha ID e Motivo para kickar."), -1)
-                    end
-                end)
-
-                botaoComTooltip("Ag. Ban", imgui.ImVec2(pW, 26), "Agendar ban: /agendarban [ID] [Motivo]", function()
-                    local id = sanitizarEntrada(campoNickIDF.v)
-                    local m = sanitizarEntrada(motivo.v)
-                    if id ~= "" and validarMotivo(m) then
-                        acaoPerigosa("AGENDAR BAN para " .. id, "/agendarban " .. id .. " " .. m)
-                    else
-                        sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha ID e Motivo."), -1)
-                    end
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Telagem", imgui.ImVec2(pW, 26), "Aplicar telagem: /telagem [ID] [Motivo]", function()
-                    local id = sanitizarEntrada(campoNickIDF.v)
-                    local m = sanitizarEntrada(motivo.v)
-                    if id ~= "" and validarMotivo(m) then
-                        acaoPerigosa("TELAR jogador " .. id, "/telagem " .. id .. " " .. m)
-                    else
-                        sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha ID e Motivo."), -1)
-                    end
-                end)
-
-                imgui.PopStyleColor(3)
-
-                imgui.Spacing()
-
-                -- PUNICOES MEDIAS (laranja)
-                imgui.TextColored(imgui.ImVec4(0.9, 0.6, 0.1, 1), "Punicoes Moderadas")
-                imgui.Spacing()
-                imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0.45, 0.25, 0.05, 1.0))
-                imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.65, 0.35, 0.10, 1.0))
-                imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.85, 0.45, 0.05, 1.0))
-
-                botaoComTooltip("Cadeia", imgui.ImVec2(pW, 26), "Prender: /cadeia [ID] [Tempo] [Motivo]", function()
-                    local id = sanitizarEntrada(campoNickIDF.v)
-                    local t = sanitizarEntrada(tempo.v)
-                    local m = sanitizarEntrada(motivo.v)
-                    if id ~= "" and t ~= "" and validarMotivo(m) then
-                        acaoPerigosa("PRENDER jogador " .. id, "/cadeia " .. id .. " " .. t .. " " .. m)
-                    else
-                        sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha ID, Tempo e Motivo."), -1)
-                    end
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Ag. Cadeia", imgui.ImVec2(pW, 26), "Agendar cadeia: /agendarcadeia [ID] [Tempo] [Avisos] [Motivo]", function()
-                    local id = sanitizarEntrada(campoNickIDF.v)
-                    local t = sanitizarEntrada(tempo.v)
-                    local a = sanitizarEntrada(avisos.v)
-                    local m = sanitizarEntrada(motivo.v)
-                    if id ~= "" and t ~= "" and validarMotivo(m) then
-                        acaoSom("/agendarcadeia " .. id .. " " .. t .. " " .. a .. " " .. m)
-                    else
-                        sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha todos os campos obrigatorios."), -1)
-                    end
-                end)
-
-                botaoComTooltip("Advertencia", imgui.ImVec2(pW, 26), "Dar advertencia: /adv [ID] [Motivo ADV]", function()
-                    local id = sanitizarEntrada(campoNickIDF.v)
-                    local a = sanitizarEntrada(adv.v)
-                    if id ~= "" and a ~= "" then
-                        acaoSom("/adv " .. id .. " " .. a)
-                    else
-                        sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha ID e Motivo ADV."), -1)
-                    end
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Rem. Advertencia", imgui.ImVec2(pW, 26), "Retirar advertencia: /retiraradv [ID] [Motivo ADV]", function()
-                    local id = sanitizarEntrada(campoNickIDF.v)
-                    local a = sanitizarEntrada(adv.v)
-                    if id ~= "" and a ~= "" then
-                        acaoSom("/retiraradv " .. id .. " " .. a)
-                    else
-                        sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha ID e Motivo ADV."), -1)
-                    end
-                end)
-
-                imgui.PopStyleColor(3)
-
-                imgui.Spacing()
-
-                -- REMOCOES / DESBLOQUEIOS (verde)
-                imgui.TextColored(imgui.ImVec4(0.2, 0.85, 0.3, 1), "Remocoes e Desbloqueios")
-                imgui.Spacing()
-                imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0.08, 0.32, 0.12, 1.0))
-                imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.12, 0.48, 0.18, 1.0))
-                imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.18, 0.65, 0.25, 1.0))
-
-                botaoComTooltip("Desbanir Conta", imgui.ImVec2(pW, 26), "Desbanir conta: /desbanconta [ID]", function()
-                    if campoNickIDF.v ~= "" then acaoSom("/desbanconta " .. sanitizarEntrada(campoNickIDF.v))
-                    else sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha o ID/Nick."), -1) end
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Limpar Ban", imgui.ImVec2(pW, 26), "Limpar historico de ban: /limparban [ID]", function()
-                    if campoNickIDF.v ~= "" then acaoSom("/limparban " .. sanitizarEntrada(campoNickIDF.v))
-                    else sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha o ID/Nick."), -1) end
-                end)
-
-                botaoComTooltip("Limpar Cadeia", imgui.ImVec2(pW, 26), "Limpar historico de cadeia: /limparcadeia [ID]", function()
-                    if campoNickIDF.v ~= "" then acaoSom("/limparcadeia " .. sanitizarEntrada(campoNickIDF.v))
-                    else sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha o ID/Nick."), -1) end
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Rem. Telagem", imgui.ImVec2(pW, 26), "Remover telagem: /removertelagem [ID]", function()
-                    if campoNickIDF.v ~= "" then acaoSom("/removertelagem " .. sanitizarEntrada(campoNickIDF.v))
-                    else sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha o ID/Nick."), -1) end
-                end)
-
-                botaoComTooltip("Desbanir IP", imgui.ImVec2(pW, 26), "Desbanir IP: /desbanip [IP]", function()
-                    local ip = sanitizarEntrada(campoIP.v)
-                    if ip ~= "" then acaoSom("/desbanip " .. ip)
-                    else sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha o campo IP."), -1) end
-                end)
-                imgui.SameLine()
-                botaoComTooltip("Liberar IP", imgui.ImVec2(pW, 26), "Liberar IP: /liberarip [IP]", function()
-                    local ip = sanitizarEntrada(campoIP.v)
-                    if ip ~= "" then acaoSom("/liberarip " .. ip)
-                    else sampAddChatMessage(u8("{FF0000}[Painel] {FFFFFF}Preencha o campo IP."), -1) end
-                end)
-
-                imgui.PopStyleColor(3)
-
-            -- ==========================================
-            -- ABA 4: SETAGEM
-            -- ==========================================
-            elseif abaAtual == 4 then
-                tituloSecao("SETAGEM DE PRIVILEGIOS")
-
-                -- Aviso se nenhum player selecionado
-                if campoNickIDF.v == "" then
-                    imgui.PushStyleColor(imgui.Col.ChildWindowBg, imgui.ImVec4(0.15, 0.10, 0.02, 0.90))
-                    imgui.BeginChild("AvisoSetagem", imgui.ImVec2(0, 28), true)
-                        imgui.TextColored(imgui.ImVec4(1, 0.7, 0.2, 1), "  Selecione um player para aplicar setagens.")
-                    imgui.EndChild()
-                    imgui.PopStyleColor()
-                    imgui.Spacing()
-                end
-
-                local sW = (imgui.GetContentRegionAvailWidth() - 10) / 2
-
-                -- BOOSTER
-                imgui.BeginChild("BoosterSection", imgui.ImVec2(0, 75), true)
-                    imgui.TextColored(cT, "BOOSTER")
-                    imgui.Separator()
-                    imgui.Spacing()
-                    imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0.08, 0.32, 0.12, 1.0))
-                    imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.12, 0.48, 0.18, 1.0))
-                    imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.18, 0.65, 0.25, 1.0))
-                    botaoComTooltip("Ativar Booster", imgui.ImVec2(sW, 30), "Conceder booster ao jogador", function()
-                        verificarPlayerEExecutar("/setbooster " .. sanitizarEntrada(campoNickIDF.v) .. " 1")
-                    end)
-                    imgui.PopStyleColor(3)
-                    imgui.SameLine()
-                    imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0.45, 0.10, 0.10, 1.0))
-                    imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.65, 0.15, 0.15, 1.0))
-                    imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.85, 0.10, 0.10, 1.0))
-                    botaoComTooltip("Remover Booster", imgui.ImVec2(sW, 30), "Retirar booster do jogador", function()
-                        verificarPlayerEExecutar("/setbooster " .. sanitizarEntrada(campoNickIDF.v) .. " 0")
-                    end)
-                    imgui.PopStyleColor(3)
-                imgui.EndChild()
-
-                imgui.Spacing()
-
-                -- YOUTUBER
-                imgui.BeginChild("YTSection", imgui.ImVec2(0, 75), true)
-                    imgui.TextColored(cT, "YOUTUBER")
-                    imgui.Separator()
-                    imgui.Spacing()
-                    imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0.08, 0.32, 0.12, 1.0))
-                    imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.12, 0.48, 0.18, 1.0))
-                    imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.18, 0.65, 0.25, 1.0))
-                    botaoComTooltip("Ativar YT", imgui.ImVec2(sW, 30), "Conceder cargo YouTuber", function()
-                        verificarPlayerEExecutar("/setyt " .. sanitizarEntrada(campoNickIDF.v) .. " 1")
-                    end)
-                    imgui.PopStyleColor(3)
-                    imgui.SameLine()
-                    imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0.45, 0.10, 0.10, 1.0))
-                    imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.65, 0.15, 0.15, 1.0))
-                    imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.85, 0.10, 0.10, 1.0))
-                    botaoComTooltip("Remover YT", imgui.ImVec2(sW, 30), "Retirar cargo YouTuber", function()
-                        verificarPlayerEExecutar("/setyt " .. sanitizarEntrada(campoNickIDF.v) .. " 0")
-                    end)
-                    imgui.PopStyleColor(3)
-                imgui.EndChild()
-
-            -- ==========================================
-            -- ABA 5: LOG DE ACOES
-            -- ==========================================
-            elseif abaAtual == 5 then
-                tituloSecao("HISTORICO DE ACOES DA SESSAO")
-
-                if #logAcoes == 0 then
-                    imgui.Spacing()
-                    imgui.TextColored(imgui.ImVec4(0.4, 0.4, 0.4, 1), "Nenhuma acao registrada nesta sessao.")
-                    imgui.Spacing()
-                    imgui.TextColored(imgui.ImVec4(0.35, 0.35, 0.35, 1), "Todas as acoes executadas pelo painel serao registradas aqui")
-                    imgui.TextColored(imgui.ImVec4(0.35, 0.35, 0.35, 1), "para controle e auditoria durante a sessao atual.")
-                else
-                    imgui.TextColored(imgui.ImVec4(0.5, 0.5, 0.5, 1), string.format("Total: %d acoes registradas (max %d)", #logAcoes, MAX_LOG))
-                    imgui.Spacing()
-
-                    imgui.PushStyleColor(imgui.Col.ChildWindowBg, imgui.ImVec4(0.05, 0.05, 0.05, 0.95))
-                    imgui.BeginChild("LogScroll", imgui.ImVec2(0, -35), true)
-                    for _, entry in ipairs(logAcoes) do
-                        imgui.TextColored(cT, "[" .. entry.hora .. "]")
-                        imgui.SameLine()
-                        imgui.Text(entry.texto)
-                        imgui.Separator()
-                    end
-                    imgui.EndChild()
-                    imgui.PopStyleColor()
-
-                    imgui.Spacing()
-                    imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0.35, 0.15, 0.15, 1.0))
-                    imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.5, 0.2, 0.2, 1.0))
-                    imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.7, 0.1, 0.1, 1.0))
-                    if imgui.Button("Limpar Historico", imgui.ImVec2(-1, 26)) then
-                        logAcoes = {}
-                    end
-                    imgui.PopStyleColor(3)
-                end
+            -- Conteudo da pagina
+            if paginaAtual == 1 then
+                desenharPaginaInicio()
+            elseif paginaAtual == 2 then
+                desenharPaginaJogadores()
+            elseif paginaAtual == 3 then
+                desenharPaginaGerenciar()
+            elseif paginaAtual == 4 then
+                desenharPaginaPunicoes()
+            elseif paginaAtual == 5 then
+                desenharPaginaComandos()
+            elseif paginaAtual == 6 then
+                desenharPaginaAparencia()
             end
 
         imgui.EndChild()
+        imgui.PopStyleVar()
 
         -- ==========================================
-        -- MODAL DE CONFIRMACAO DE ACAO PERIGOSA
+        -- MODAL DE CONFIRMACAO
         -- ==========================================
         if mostrarConfirmacao and acaoPendente then
-            imgui.SetNextWindowPos(
-                imgui.ImVec2(mainWindowPos.x + mainWindowSize.x / 2 - 190, mainWindowPos.y + mainWindowSize.y / 2 - 80),
-                imgui.Cond.Always
-            )
-            imgui.SetNextWindowSize(imgui.ImVec2(380, 160), imgui.Cond.Always)
-            imgui.PushStyleColor(imgui.Col.WindowBg, imgui.ImVec4(0.08, 0.04, 0.04, 0.98))
-            imgui.PushStyleColor(imgui.Col.TitleBgActive, imgui.ImVec4(0.55, 0.08, 0.08, 1.0))
-            imgui.PushStyleVar(imgui.StyleVar.WindowRounding, 8.0)
+            local modalW, modalH = 400, 170
+            local mX = mainWindowPos.x + (mainWindowSize.x - modalW) / 2
+            local mY = mainWindowPos.y + (mainWindowSize.y - modalH) / 2
+            imgui.SetNextWindowPos(imgui.ImVec2(mX, mY), imgui.Cond.Always)
+            imgui.SetNextWindowSize(imgui.ImVec2(modalW, modalH), imgui.Cond.Always)
+            imgui.PushStyleColor(imgui.Col.WindowBg, imgui.ImVec4(0.10, 0.06, 0.06, 0.98))
+            imgui.PushStyleColor(imgui.Col.TitleBgActive, imgui.ImVec4(0.55, 0.08, 0.08, 1.00))
+            imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.ImVec2(12, 10))
 
-            if imgui.Begin("CONFIRMAR ACAO##modal", nil,
-                imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove) then
-
+            if imgui.Begin("CONFIRMAR ACAO##modal", nil, imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove) then
                 imgui.Spacing()
-                imgui.TextColored(imgui.ImVec4(1, 0.8, 0.15, 1), "Tem certeza que deseja executar esta acao?")
+                imgui.TextColored(CORES.laranja, "Tem certeza que deseja executar esta acao?")
                 imgui.Spacing()
-                imgui.TextColored(imgui.ImVec4(1, 0.4, 0.4, 1), acaoPendente)
-                imgui.Spacing(); imgui.Spacing()
+                imgui.TextColored(CORES.vermelho, acaoPendente)
+                imgui.Spacing()
+                imgui.Spacing()
+                imgui.Separator()
+                imgui.Spacing()
 
-                local modalBtnW = (imgui.GetContentRegionAvailWidth() - 10) / 2
-
-                imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0.55, 0.08, 0.08, 1.0))
-                imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.75, 0.12, 0.12, 1.0))
-                imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.9, 0.05, 0.05, 1.0))
-                if imgui.Button("CONFIRMAR", imgui.ImVec2(modalBtnW, 30)) then
+                local btnW = (imgui.GetContentRegionAvailWidth() - 12) / 2
+                imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0.55, 0.12, 0.12, 1.00))
+                imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.70, 0.18, 0.18, 1.00))
+                imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.85, 0.10, 0.10, 1.00))
+                if imgui.Button("CONFIRMAR##modalSim", imgui.ImVec2(btnW, 32)) then
                     acaoSom(acaoComando)
                     mostrarConfirmacao = false
                     acaoPendente = nil
                     acaoComando = nil
                 end
                 imgui.PopStyleColor(3)
-
-                imgui.SameLine()
-
-                imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(0.25, 0.25, 0.25, 1.0))
-                imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(0.35, 0.35, 0.35, 1.0))
-                imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(0.45, 0.45, 0.45, 1.0))
-                if imgui.Button("CANCELAR", imgui.ImVec2(modalBtnW, 30)) then
+                imgui.SameLine(0, 12)
+                if imgui.Button("Cancelar##modalNao", imgui.ImVec2(btnW, 32)) then
                     mostrarConfirmacao = false
                     acaoPendente = nil
                     acaoComando = nil
-                    sampAddChatMessage(u8("{FFFF00}[Painel] {FFFFFF}Acao cancelada pelo administrador."), -1)
                 end
-                imgui.PopStyleColor(3)
-
                 imgui.End()
             end
             imgui.PopStyleVar()
@@ -1140,5 +1138,7 @@ function imgui.OnDrawFrame()
         end
 
         imgui.End()
+    else
+        imgui.PopStyleVar()
     end
 end
