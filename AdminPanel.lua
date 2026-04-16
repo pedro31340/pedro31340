@@ -54,8 +54,7 @@ local mostrarConfirmacao = false
 local ultimoComando = 0
 local cooldownSegundos = config.settings.cooldownCmd
 
--- Hot-Reload: variaveis de controle
-local hotReloadAtivo = true
+-- Hot-Reload: variaveis de controle (sempre ativo, automatico)
 local hotReloadIntervalo = 3 -- verifica a cada 3 segundos
 local hotReloadUltimaVerificacao = 0
 local hotReloadHashAnterior = nil
@@ -281,30 +280,14 @@ end
 function main()
     if not isSampLoaded() or not isSampAvailable() then repeat wait(100) until isSampAvailable() end
     sampRegisterChatCommand("admin", function() janela.v = not janela.v end)
-    sampRegisterChatCommand("adminreload", function()
-        sampAddChatMessage(u8("{FFFF00}[Painel Admin] {FFFFFF}Forcando recarga do script..."), -1)
-        wait(300)
-        thisScript():reload()
-    end)
-    sampRegisterChatCommand("adminhotreload", function()
-        hotReloadAtivo = not hotReloadAtivo
-        if hotReloadAtivo then
-            sampAddChatMessage(u8("{00FF00}[Painel Admin] {FFFFFF}Hot-Reload ATIVADO. O painel recarrega automaticamente ao salvar o arquivo."), -1)
-        else
-            sampAddChatMessage(u8("{FF0000}[Painel Admin] {FFFFFF}Hot-Reload DESATIVADO."), -1)
-        end
-    end)
 
-    sampAddChatMessage(u8("{00FF00}[Painel Admin] {FFFFFF}Carregado com sucesso! Hot-Reload ativo."), -1)
-    sampAddChatMessage(u8("{00FF00}[Painel Admin] {FFFFFF}Comandos: /admin (abrir) | /adminreload (forcar) | /adminhotreload (on/off)"), -1)
+    sampAddChatMessage(u8("{00FF00}[Painel Admin] {FFFFFF}Carregado! Auto-atualizacao ativa - salve o arquivo e ele recarrega sozinho."), -1)
 
     while true do
         wait(0)
 
-        -- Hot-Reload: verifica mudancas no arquivo do script
-        if hotReloadAtivo then
-            verificarHotReload()
-        end
+        -- Hot-Reload: verifica mudancas no arquivo do script automaticamente
+        verificarHotReload()
 
         if isKeyDown(key.VK_F2) and not sampIsChatInputActive() and not sampIsDialogActive() then
             if not travaF2 then janela.v = not janela.v; travaF2 = true end
