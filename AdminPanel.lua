@@ -1354,12 +1354,7 @@ function imgui.OnDrawFrame()
             local mY = mainWindowPos.y + (mainWindowSize.y - modalH) / 2
             imgui.SetNextWindowPos(imgui.ImVec2(mX, mY), imgui.Cond.Always)
             imgui.SetNextWindowSize(imgui.ImVec2(modalW, modalH), imgui.Cond.Always)
-            imgui.PushStyleColor(imgui.Col.WindowBg, imgui.ImVec4(0.10, 0.06, 0.06, 0.98))
-            imgui.PushStyleColor(imgui.Col.TitleBgActive, imgui.ImVec4(0.55, 0.08, 0.08, 1.00))
-            imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.ImVec2(12, 10))
             local modalAberto = imgui.Begin("CONFIRMAR ACAO##modal", nil, imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove)
-            imgui.PopStyleVar()
-            imgui.PopStyleColor(2)
 
             if modalAberto then
                 imgui.Spacing()
